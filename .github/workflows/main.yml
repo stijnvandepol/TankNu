@@ -12,10 +12,13 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, linux, x64]
     env:
+      # Houd deze in sync met je compose projectnaam (of laat weg en gebruik dir-naam)
+      COMPOSE_PROJECT_NAME: mijnapp
 
     steps:
+      # 0) Werkdirectory echt leegtrekken (ook op self-hosted)
       - name: Pre-clean workspace
         shell: bash
         run: |
@@ -25,13 +28,15 @@ jobs:
             rm -rf "$GITHUB_WORKSPACE"/* || true
           fi
 
+      # 1) Schone git clone
       - name: Checkout (fresh)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          clean: true
+          clean: true         # git clean -ffdx na checkout
+          # ref: main         # optioneel: pin expliciete branch/tag
 
-
+      # 2) Detect compose CLI
       - name: Detect docker compose
         id: dccmd
         shell: bash
@@ -44,12 +49,14 @@ jobs:
             echo "Geen docker compose gevonden"; exit 1
           fi
 
+      # 3) YAML check vóór we iets omduwen
       - name: Validate compose
         shell: bash
         run: |
           DC="${{ steps.dccmd.outputs.cmd }}"
           $DC config >/dev/null
 
+      # 4) HARD CLEAN: alles van dit project weg
       - name: Down + remove images + volumes + orphans
         shell: bash
         run: |
@@ -66,6 +73,7 @@ jobs:
           vols=$(docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")
           if [ -n "$vols" ]; then docker volume rm $vols || true; fi
 
+      # 5A) LOKALE BUILD: Dockerfile(s) in repo -> volledig vers bouwen
       - name: Build fresh & up (local build)
         if: ${{ always() }}
         shell: bash
@@ -77,6 +85,17 @@ jobs:
           # Start met nieuwe anonieme volumes en geen weescontainers
           $DC up -d --remove-orphans --renew-anon-volumes
 
+      # 5B) REGISTRY IMAGES (als je in compose 'image:' gebruikt, dan ipv 5A):
+      # - name: Pull fresh & up (registry images)
+      #   if: ${{ always() }}
+      #   shell: bash
+      #   run: |
+      #     set -e
+      #     DC="${{ steps.dccmd.outputs.cmd }}"
+      #     $DC pull --ignore-pull-failures
+      #     $DC up -d --remove-orphans --renew-anon-volumes
+
+      # 6) Status
       - name: Status
         shell: bash
         run: |

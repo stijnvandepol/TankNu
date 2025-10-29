@@ -1,5 +1,18 @@
-FROM python:3.6
-ADD . /app
+FROM python:3.11-slim
+
 WORKDIR /app
-RUN python -m pip install -r requirements.txt
-CMD [ "python", "main.py" ]
+
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+build-essential \
+default-libmysqlclient-dev \
+&& rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY src ./src
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "-m", "src.ingest"]

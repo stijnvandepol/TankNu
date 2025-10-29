@@ -1,80 +1,121 @@
-# Fuel Prices in the Netherlands
+# 🛢️ Fuel Prices Collector
 
-This project is about collecting the fuel prices around the Netherlands. An way of collecting this information is using the api that some companies like 'Makro' make publicly available.
-
-## Using the project
-
-For using this project I personally recommend using docker, I created an dockerhub repo for getting the latest version. [Docker hub](https://hub.docker.com/r/bartmachielsen/anwb-fuel-prices/)
-
-Otherwise make sure to install *Python 3.6* with all the requiremenst from requirements.txt.
-
-For connecting to the database the following environmental variables need to be set: (**IMPORTANT**)
-
-- **MYSQL_HOST** (The location of the mysql server, port is default as 3306)
-- **MYSQL_USER** (An mysql user with write and read permission)
-- **MYSQL_PASSWORD** (Of the given user)
-- **MYSQL_DATABASE** (The database needs to be already available, the structure will be automaticly created on the first run)
-
-&nbsp;
-
-## About this project
-
-### GOAL
-
-The goal of this project is collecting data from all fuelstations in the Netherlands for mapping this data and maybe make something like predictions.
+Een volledig gecontaineriseerde Python-oplossing om **brandstofprijzen in Nederland** te verzamelen via de publieke ANWB-endpoints, deze in een **MySQL-database** op te slaan, en via een **FastAPI-interface** beschikbaar te stellen.
 
 ---
 
-&nbsp;
+## ⚙️ Inhoud
+1. [Overzicht](#overzicht)
+2. [Architectuur](#architectuur)
+3. [Installatie](#installatie)
+4. [Hoe het werkt](#hoe-het-werkt)
+5. [API-endpoints](#api-endpoints)
+6. [Database-tabellen](#database-tabellen)
+7. [Logs & Troubleshooting](#logs--troubleshooting)
+8. [Veelgestelde vragen](#veelgestelde-vragen)
 
-### PROBLEM
-
-There are a lot of different fuelstations with different websites, for collecting this data a lot of webparsers need to be written. The other problem is with fuelstations that do not make their data publicly available.
 
 ---
 
-&nbsp;
+## 🧭 Overzicht
 
-### SOLUTION
+Deze applicatie:
+- haalt **alle tankstations in Nederland** op via de publieke **ANWB API**
+- bewaart de resultaten in een **MySQL-database**
+- verzamelt periodiek **prijsinformatie per station** als timeseries
+- stelt via **FastAPI** endpoints beschikbaar waarmee je stations kunt opvragen, filteren en sorteren
 
-For finding an solution to this problem i looked into different sources that already collect data about fuelprices, an large player in this field is the ANWB which has an app that supplies this data to anybody to find the cheapest station nearby.
+Dit project is bedoeld als een kleine ETL-pijplijn (ingest → opslag → API) en is zo opgezet dat je lokaal kunt ontwikkelen met Docker Compose.
 
-___
+## 🧩 Architectuur
 
-#### ANWB
+De Docker Compose stack bestaat uit minimaal twee containers:
 
-The 'ANWB' did already collect an wide range of sources. They written an range of parsers and also collect data by visits.
+| Service | Beschrijving |
+|--------:|-------------|
+| **db**  | MySQL database met alle stations & prijsdata |
+| **app** | Python-ingester die de ANWB API afloopt en data opslaat |
+| **api** | FastAPI-server die data serveert vanuit de database (optioneel) |
 
-&nbsp;
+De services delen dezelfde database via het interne Docker-netwerk.
 
-**Visits?**
+## 🚀 Installatie
 
-Yeah, while taking an look at the data from the ANWB I noticed that some prices have an source that is been marked 'VISIT'.
+Zorg dat je **Docker Desktop** of een andere Docker-engine hebt draaien.
 
-&nbsp;
+1) Clone de repository
 
-**How does the ANWB know data from visits?**
+```bash
+git clone https://github.com/stijnvandepol/ANWB-Fuel-Prices.git
+cd ANWB-Fuel-Prices
+```
 
-The ANWB has an system that supplies discount to members who use their ANWB-creditcard for getting gas. [See this page for more information.](https://www.anwb.nl/auto/themas/tanken-met-ledenvoordeel)
+2) (Optioneel) Pas de waardes in `.env` aan.
 
-The ANWB collects data from the bill from the creditcard in exchange for an discount. Not every fuelstation is an member on which you get discount. (there are around 3800 stations and anwb gives discount at 700)
+3) Start de stack
 
-But even if an fuelstation is not an member they still get used for getting the fuelprice (because the ANWB gets access to all fuelstation related creditcard transactions)
+```bash
+docker compose up --build
+```
 
-&nbsp;
+De `app` zal starten en beginnen met het ophalen van tiles en stations; de `api` is standaard op poort 8080 bereikbaar.(Is aanpasbaar in de docker-compose)
 
-**How to use this data?**
+Opmerking: bij eerste run kan MySQL enige tijd nodig hebben om op te starten; de ingester wacht op de DB-connectie.
 
-The ANWB uses an REST API in their app for getting the latest collected fuelprice, this project uses that api for getting the stations and prices.
+## 🧠 Hoe het werkt
 
-&nbsp;
+1. De ingester verdeelt Nederland in kleine tegels (tiles).
+2. Voor elke tile vraagt de ingester stations op bij de ANWB `/fuel/stations` endpoint.
+3. Gevonden stations en prijsdata worden in MySQL opgeslagen in de tabellen `fuel_stations` en `fuel_station_prices`.
 
-**So whats the catch?**
+De ingester bevat eenvoudige retry-, rate-limiting- en circuit-breaker-logica zodat de externe API niet onnodig wordt belast.
 
-The ANWB only allows station lookups on an small targeted map 'geobox'. So for getting the whole Netherlands you need to map all the coordinates in the netherlands and request details from each of them. I created an script that creates those boxes and automaticly loops them all for getting all stations, but because some boxes are not inside the Netherlands they will be automaticly not be looped in the next run.
+## 🧭 API (kort)
 
-&nbsp;
+Als de `api`-service draait, is de Swagger UI doorgaans beschikbaar op:
 
-**How to collect data?**
+```
+http://localhost:8080/docs
+```
 
-Run this script daily :)
+Voorbeelden van endpoints:
+- `GET /stations` — alle stations
+- `GET /stations/{station_id}` — details van één station
+- `GET /stations/cheapest?lat={lat}&lon={lon}&radius_km={r}&fuel={type}` — goedkoopste station in straal
+
+Voor snelle tests kun je `curl` of Postman gebruiken. Bijvoorbeeld:
+
+```bash
+curl "http://localhost:8080/stations?limit=10"
+```
+
+## Database
+
+Belangrijke tabellen:
+
+- `coordinate_tiles` — gegenereerde tegels (sw_lat, sw_lon, ne_lat, ne_lon, last_scanned_at)
+- `fuel_stations` — station metadata (id, title, latitude, longitude, address, etc.)
+- `fuel_station_prices` — prijsrecords (station_id, fuel_type, value_eur_per_l, collected_at)
+
+Je kunt de database bereiken door gebruik te maken van ene MySQL client als MySQL Workbench of Tableplus
+
+## 🪵 Logs & Troubleshooting
+
+Bekijk live logs:
+
+```bash
+docker compose logs -f app
+docker compose logs -f api
+docker compose logs -f db
+```
+
+Je kunt dit vereenvoudigen door gebruik te maken van Portainer.
+
+## Veelgestelde vragen
+
+- Waarom zie ik veel 500 responses van ANWB?  
+	Dit betekent dat de externe API tijdelijk problemen heeft (server-side). De ingester zal retries proberen en activeert een korte cool-down (circuit) als er veel fouten optreden.
+
+## Bijdragen & contact
+
+Voor vragen kun je een issue openen in de repository.

@@ -53,7 +53,7 @@ select:focus { outline: none; border-color: #667eea; }
 .slider-value { float: right; font-weight: 600; color: #667eea; }
 
 input[type="range"] {
-  width: 100%; height: 6px; border-radius: 3px; background: #e5e7eb; outline: none; -webkit-appearance: none; margin-top: 8px;
+  width: 100%; height: 6px; border-radius: 3px; background: #e5e7eb; outline: none; appearance: none; -webkit-appearance: none; margin-top: 8px;
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #667eea; cursor: pointer;
@@ -101,6 +101,35 @@ input[type="range"]::-moz-range-thumb {
 .station-address { font-size: 14px; color: #6b7280; margin-bottom: 8px; }
 .station-distance { display: inline-block; padding: 4px 10px; background: #f3f4f6; border-radius: 6px; font-size: 13px; color: #4b5563; font-weight: 500; }
 
+/* Rij onderin de kaart met afstand links en routeknop rechts */
+.station-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.route-btn {
+  margin-left: auto; /* forceer naar rechts */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0b5ed7;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.route-btn:hover {
+  background: #f5f7ff;
+  border-color: #cbd5ff;
+}
+
 .info-box {
   background: #f0f9ff; border-left: 4px solid #0369a1; padding: 16px;
   border-radius: 8px; margin-bottom: 20px; font-size: 14px; color: #0c4a6e;
@@ -119,6 +148,20 @@ input[type="range"]::-moz-range-thumb {
 
 .no-results { text-align: center; padding: 40px 20px; color: white; }
 .no-results-icon { font-size: 48px; margin-bottom: 16px; }
+
+/* Page footer */
+.page-footer {
+  margin: 16px auto 0;
+  max-width: 500px;
+  text-align: center;
+  color: rgba(255,255,255,0.85);
+  font-size: 13px;
+}
+.page-footer a {
+  color: rgba(255,255,255,0.95);
+  text-decoration: none;
+}
+.page-footer a:hover { text-decoration: underline; }
 
 @media (max-width: 480px) {
   body { padding: 16px; }

@@ -54,7 +54,6 @@ class StationOut(BaseModel):
 def get_session():
     return SessionLocal()
 
-# subquery om per fuel_type de laatste prijs te pakken voor één station
 LATEST_PRICE_SQL = text(
     """
     SELECT p.* FROM fuel_station_prices p
@@ -70,9 +69,8 @@ LATEST_PRICE_SQL = text(
     """
 )
 
-# alias mapping: veelgebruikte labels → interne codes
 FUEL_ALIASES = {
-    "E5": "EURO98",     # in praktijk vaak 98 (E5)
+    "E5": "EURO98",
     "E10": "EURO95",
     "B7": "DIESEL",
     "LPG": "AUTOGAS",
@@ -84,27 +82,12 @@ FUEL_ALIASES = {
 def health():
     return {"status": "ok"}
 
-@app.get("/stations/{station_id}", response_model=StationOut)
-def get_station(station_id: str):
+@app.get("/stations/count")
+def stations_count():
+    """Diagnostische endpoint: geef het aantal stations in de database terug."""
     with get_session() as s:
-        st = s.get(FuelStation, station_id)
-        if not st:
-            raise HTTPException(status_code=404, detail="Station not found")
-        prices = s.execute(LATEST_PRICE_SQL, {"sid": station_id}).mappings().all()
-        latest_prices = [PriceOut(**row) for row in prices]
-        return StationOut(
-            id=st.id,
-            title=st.title,
-            type=st.type,
-            latitude=st.latitude,
-            longitude=st.longitude,
-            street_address=st.street_address,
-            postal_code=st.postal_code,
-            city=st.city,
-            country=st.country,
-            iso3_country_code=st.iso3_country_code,
-            latest_prices=latest_prices,
-        )
+        cnt = s.query(FuelStation).count()
+        return {"count": cnt}
 
 @app.get("/stations/nearby", response_model=List[StationOut])
 def stations_nearby(
@@ -286,3 +269,26 @@ def stations_search(
                 out.latest_prices = [PriceOut(**p) for p in prices]
             results.append(out)
         return results
+
+
+@app.get("/stations/{station_id}", response_model=StationOut)
+def get_station(station_id: str):
+    with get_session() as s:
+        st = s.get(FuelStation, station_id)
+        if not st:
+            raise HTTPException(status_code=404, detail="Station not found")
+        prices = s.execute(LATEST_PRICE_SQL, {"sid": station_id}).mappings().all()
+        latest_prices = [PriceOut(**row) for row in prices]
+        return StationOut(
+            id=st.id,
+            title=st.title,
+            type=st.type,
+            latitude=st.latitude,
+            longitude=st.longitude,
+            street_address=st.street_address,
+            postal_code=st.postal_code,
+            city=st.city,
+            country=st.country,
+            iso3_country_code=st.iso3_country_code,
+            latest_prices=latest_prices,
+        )

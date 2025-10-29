@@ -70,6 +70,14 @@ Opmerking: bij eerste run kan MySQL enige tijd nodig hebben om op te starten; de
 
 De ingester bevat eenvoudige retry-, rate-limiting- en circuit-breaker-logica zodat de externe API niet onnodig wordt belast.
 
+## ⚙️ Configuratie 
+
+- Poort 3306 (MySQL) staat standaard open. Sluit deze poort in docker-compose.yml als externe toegang tot de database niet nodig is.
+- Database-credentials (host, user, wachtwoord, database) worden ingesteld via het .env-bestand. Pas deze waarden aan naar je eigen voorkeur.
+- Poorten aanpassen: de standaardpoorten zijn 3306 voor de database en 8080 voor de API. Je kunt deze wijzigen in docker-compose.yml als ze al in gebruik zijn.
+
+Aantal API-verzoeken per seconde aanpassen (sneller of trager ophalen van data) kan via config.py.
+
 ## 🧭 API (kort)
 
 Als de `api`-service draait, is de Swagger UI doorgaans beschikbaar op:
@@ -82,12 +90,6 @@ Voorbeelden van endpoints:
 - `GET /stations` — alle stations
 - `GET /stations/{station_id}` — details van één station
 - `GET /stations/cheapest?lat={lat}&lon={lon}&radius_km={r}&fuel={type}` — goedkoopste station in straal
-
-Voor snelle tests kun je `curl` of Postman gebruiken. Bijvoorbeeld:
-
-```bash
-curl "http://localhost:8080/stations?limit=10"
-```
 
 ## Database
 

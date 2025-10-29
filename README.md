@@ -46,8 +46,8 @@ Zorg dat je **Docker Desktop** of een andere Docker-engine hebt draaien.
 1) Clone de repository
 
 ```bash
-git clone https://github.com/stijnvandepol/ANWB-Fuel-Prices.git
-cd ANWB-Fuel-Prices
+git clone https://github.com/stijnvandepol/Tanknu.nl.git
+cd Tanknu.nl
 ```
 
 2) (Optioneel) Pas de waardes in `.env` aan.
@@ -106,7 +106,7 @@ Je kunt de database bereiken door gebruik te maken van ene MySQL client als MySQ
 Bekijk live logs:
 
 ```bash
-docker compose logs -f app
+docker compose logs -f ingest
 docker compose logs -f api
 docker compose logs -f db
 ```

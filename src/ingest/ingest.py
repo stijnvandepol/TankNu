@@ -7,9 +7,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
-from .config import Config
-from .models import Base, CoordinateTile, FuelStation, FuelStationPrice
-from .anwb_client import AnwbClient
+from src.config import Config
+from src.models import Base, CoordinateTile, FuelStation, FuelStationPrice
+from .endpoint_connector import EndpointClient
 from .tiler import generate_tiles
 from .utils import RateLimiter
 
@@ -85,7 +85,7 @@ def ingest_cycle():
     ensure_tiles_exist()
 
     rate = RateLimiter(per_second=Config.REQUESTS_PER_SECOND)
-    client = AnwbClient(rate_limiter=rate)
+    client = EndpointClient(rate_limiter=rate)
 
     all_ids: set[str] = set()
     with SessionLocal() as session:

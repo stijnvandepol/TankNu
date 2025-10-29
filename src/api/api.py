@@ -7,8 +7,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
-from .config import Config
-from .models import FuelStation
+from src.config import Config
+from src.models import FuelStation
 
 DB_URI = Config.db_uri()
 engine = create_engine(DB_URI, pool_pre_ping=True, future=True)
@@ -238,7 +238,6 @@ def stations_search(
     limit: int = Query(100, gt=1, le=500),
     include_prices: bool = Query(False),
 ):
-    from sqlalchemy import select
     with get_session() as s:
         q = s.query(FuelStation)
         if city:

@@ -3,16 +3,16 @@ import requests
 from typing import Optional
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-class AnwbError(Exception):
-    """Custom exception for ANWB API errors."""
+class EndpointError(Exception):
+    """Custom exception for Endpoint API errors."""
     pass
 
 
-class AnwbClient:
+class EndpointClient:
     BASE = "https://api.anwb.nl"
 
     def __init__(self, rate_limiter=None):
-        """Maak een ANWB client aan zonder API key."""
+        """Maak een Endpoint client aan zonder API key."""
         self.sess = requests.Session()
         self.sess.headers.update({
             "Accept": "application/json",
@@ -29,7 +29,7 @@ class AnwbClient:
         resp = self.sess.get(url, params=params, timeout=30)
 
         if not resp.ok:
-            raise AnwbError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+            raise EndpointError(f"HTTP {resp.status_code}: {resp.text[:200]}")
 
         return resp.json()
 
@@ -37,7 +37,7 @@ class AnwbClient:
         reraise=True,
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=0.5, min=0.5, max=8),
-        retry=retry_if_exception_type(AnwbError)
+        retry=retry_if_exception_type(EndpointError)
     )
     def list_fuel_stations_bbox(self, sw_lat: float, sw_lon: float, ne_lat: float, ne_lon: float) -> list[dict]:
         """Geef een lijst met tankstations binnen een bounding box."""
@@ -52,7 +52,7 @@ class AnwbClient:
         reraise=True,
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=0.5, min=0.5, max=8),
-        retry=retry_if_exception_type(AnwbError)
+        retry=retry_if_exception_type(EndpointError)
     )
     def get_station_details(self, station_id: str) -> Optional[dict]:
         """Geef details van één specifiek tankstation."""

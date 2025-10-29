@@ -1,0 +1,113 @@
+name: Manual Rebuild
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_dir:
+        description: "Pad op de runner waar je wilt deployen ('.' = huidige checkout)"
+        default: "."
+        required: true
+        type: string
+      compose_file:
+        description: "Compose file pad (relatief binnen deploy_dir)"
+        default: "docker-compose.yml"
+        required: true
+        type: string
+      compose_extra:
+        description: "Optioneel extra compose file (bijv. docker-compose.prod.yml)"
+        default: ""
+        required: false
+        type: string
+      prune_volumes:
+        description: "Ook ongebruikte volumes opruimen?"
+        default: "false"
+        type: choice
+        options: ["true","false"]
+
+concurrency:
+  group: manual-rebuild-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: [self-hosted]
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Sync code naar deploy_dir (alleen als deploy_dir != '.')
+        if: ${{ inputs.deploy_dir != '.' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ inputs.deploy_dir }}"
+          rsync -a --delete --exclude ".git" ./ "${{ inputs.deploy_dir }}/"
+
+      - name: Stop & remove huidige stack (indien aanwezig)
+        shell: bash
+        working-directory: ${{ inputs.deploy_dir }}
+        run: |
+          set -euo pipefail
+          # Compose command opbouwen
+          CMD=(docker compose -f "${{ inputs.compose_file }}")
+          if [ -n "${{ inputs.compose_extra }}" ]; then
+            CMD+=(-f "${{ inputs.compose_extra }}")
+          fi
+
+          # Alleen proberen als compose file bestaat
+          if [ -f "${{ inputs.compose_file }}" ]; then
+            echo ">> Huidige status:"
+            "${CMD[@]}" ps || true
+
+            echo ">> Down (stoppen en verwijderen, incl. orphans)"
+            "${CMD[@]}" down --remove-orphans || true
+          else
+            echo "Compose file '${{ inputs.compose_file }}' niet gevonden; skip down."
+          fi
+
+      - name: Opruimen (images/containers) met system prune
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.prune_volumes }}" = "true" ]; then
+            docker system prune -af --volumes
+          else
+            docker system prune -af
+          fi
+
+      - name: Validatie compose config
+        shell: bash
+        working-directory: ${{ inputs.deploy_dir }}
+        run: |
+          set -euo pipefail
+          CMD=(docker compose -f "${{ inputs.compose_file }}")
+          if [ -n "${{ inputs.compose_extra }}" ]; then
+            CMD+=(-f "${{ inputs.compose_extra }}")
+          fi
+          "${CMD[@]}" config >/dev/null
+
+      - name: Build & start (up -d --build)
+        shell: bash
+        working-directory: ${{ inputs.deploy_dir }}
+        env:
+          DOCKER_BUILDKIT: "1"
+        run: |
+          set -euo pipefail
+          CMD=(docker compose -f "${{ inputs.compose_file }}")
+          if [ -n "${{ inputs.compose_extra }}" ]; then
+            CMD+=(-f "${{ inputs.compose_extra }}")
+          fi
+
+          # Up met build, orphan services weg
+          "${CMD[@]}" up -d --build --remove-orphans
+
+      - name: Status na deploy
+        shell: bash
+        working-directory: ${{ inputs.deploy_dir }}
+        run: |
+          set -euo pipefail
+          docker compose -f "${{ inputs.compose_file }}" ps

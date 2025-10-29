@@ -1,44 +1,84 @@
-name: Deploy latest version
+name: Deploy clean
 
 on:
-  workflow_dispatch:  # handmatig starten
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy:
-    runs-on: [self-hosted, linux, x64]  # pas aan als jouw runner andere labels heeft (bv. tnu)
+    runs-on: [self-hosted]
+    env:
 
     steps:
-      - name: Checkout laatste code
+      - name: Pre-clean workspace
+        shell: bash
+        run: |
+          set -e
+          shopt -s dotglob nullglob
+          if [ -d "$GITHUB_WORKSPACE" ]; then
+            rm -rf "$GITHUB_WORKSPACE"/* || true
+          fi
+
+      - name: Checkout (fresh)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          clean: true
+
 
       - name: Detect docker compose
         id: dccmd
+        shell: bash
         run: |
           if docker compose version >/dev/null 2>&1; then
-            echo "cmd=docker compose" >> $GITHUB_OUTPUT
+            echo "cmd=docker compose" >> "$GITHUB_OUTPUT"
           elif docker-compose version >/dev/null 2>&1; then
-            echo "cmd=docker-compose" >> $GITHUB_OUTPUT
+            echo "cmd=docker-compose" >> "$GITHUB_OUTPUT"
           else
             echo "Geen docker compose gevonden"; exit 1
           fi
 
-      - name: Stop en verwijder bestaande containers
+      - name: Validate compose
+        shell: bash
         run: |
-          set +e
           DC="${{ steps.dccmd.outputs.cmd }}"
-          $DC down --remove-orphans || true
-          docker system prune -af || true
+          $DC config >/dev/null
 
-      - name: Nieuwe versie bouwen en starten
+      - name: Down + remove images + volumes + orphans
+        shell: bash
         run: |
           set -e
           DC="${{ steps.dccmd.outputs.cmd }}"
-          $DC up -d --build
+          # Containers, netwerken, ALLE service images en ALLE volumes van deze stack
+          $DC down --remove-orphans --rmi all --volumes || true
 
-      - name: Status tonen
+          # Safety-pass op labels (mocht Compose iets laten liggen)
+          imgs=$(docker image ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")
+          if [ -n "$imgs" ]; then docker rmi -f $imgs || true; fi
+          nets=$(docker network ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")
+          if [ -n "$nets" ]; then docker network rm $nets || true; fi
+          vols=$(docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")
+          if [ -n "$vols" ]; then docker volume rm $vols || true; fi
+
+      - name: Build fresh & up (local build)
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -e
+          DC="${{ steps.dccmd.outputs.cmd }}"
+          # Nieuwe base images + geen cache
+          $DC build --pull --no-cache
+          # Start met nieuwe anonieme volumes en geen weescontainers
+          $DC up -d --remove-orphans --renew-anon-volumes
+
+      - name: Status
+        shell: bash
         run: |
           DC="${{ steps.dccmd.outputs.cmd }}"
           $DC ps

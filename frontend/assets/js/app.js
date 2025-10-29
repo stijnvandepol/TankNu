@@ -124,6 +124,24 @@ async function searchNationwideStations() {
   }
 }
 
+// Bouw Google Maps route URL (bestemming op adres, fallback lat/lon)
+function buildDirectionsUrl(origin, destination) {
+  if (!destination) return null;
+  let destStr = null;
+  if (destination.address && destination.address.trim().length > 0) {
+    destStr = destination.address.trim();
+  } else if (destination.lat != null && destination.lon != null) {
+    destStr = `${destination.lat},${destination.lon}`;
+  }
+  if (!destStr) return null;
+
+  if (origin && origin.lat != null && origin.lon != null) {
+    const orig = `${origin.lat},${origin.lon}`;
+    return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(orig)}&destination=${encodeURIComponent(destStr)}&travelmode=driving`;
+  }
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destStr)}&travelmode=driving`;
+}
+
 function displayResults(stations, fuelType, targetElementId, showDistance) {
   const resultsEl = document.getElementById(targetElementId);
 
@@ -154,6 +172,12 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
       ? `<span class="station-distance">📍 ${station.distance_km.toFixed(1)} km</span>`
       : '';
 
+    const routeUrl = buildDirectionsUrl(userLocation, {
+      address,
+      lat: station.latitude,
+      lon: station.longitude,
+    });
+
     let rankBadge = '';
     if (index < 3) {
       const rankClass = index === 0 ? 'gold' : index === 1 ? 'silver' : 'bronze';
@@ -171,7 +195,10 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
           </div>
         </div>
         <div class="station-address">${address || 'Adres onbekend'}</div>
-        ${distance}
+        <div class="station-footer">
+          ${distance}
+          ${routeUrl ? `<a class="route-btn" href="${routeUrl}" target="_blank" rel="noopener" aria-label="Route naar ${station.title || 'tankstation'}">🧭 Route</a>` : ''}
+        </div>
       </div>`;
   }).join('');
 

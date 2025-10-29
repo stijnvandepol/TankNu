@@ -27,7 +27,7 @@ document.addEventListener('input', (e) => {
   }
 });
 
-// Geolocatie ophalen
+// Geolocatie ophalen (mag falen; is nu niet meer nodig voor de Route-knop)
 window.addEventListener('load', () => {
   const statusEl = document.getElementById('locationStatus');
 
@@ -124,7 +124,11 @@ async function searchNationwideStations() {
   }
 }
 
-// Bouw Google Maps route URL (bestemming op adres, fallback lat/lon)
+/**
+ * buildDirectionsUrl: houdt 'm, maar origin is optioneel.
+ * (Maps kiest zelf je huidige locatie; we gebruiken deze functie niet meer
+ *  voor conditioneel tonen — de knop wordt altijd gerenderd.)
+ */
 function buildDirectionsUrl(origin, destination) {
   if (!destination) return null;
 
@@ -174,11 +178,9 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
       ? `<span class="station-distance">📍 ${station.distance_km.toFixed(1)} km</span>`
       : '';
 
-    const routeUrl = buildDirectionsUrl(userLocation, {
-      address,
-      lat: station.latitude,
-      lon: station.longitude,
-    });
+    // 🔽 Nieuw: ALTIJD een Maps-link, zonder enige check op origin/routeUrl
+    const destStr = address || `${station.latitude},${station.longitude}`;
+    const routeHref = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destStr)}&travelmode=driving`;
 
     let rankBadge = '';
     if (index < 3) {
@@ -199,7 +201,11 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
         <div class="station-address">${address || 'Adres onbekend'}</div>
         <div class="station-footer">
           ${distance}
-          ${routeUrl ? `<a class="route-btn" href="${routeUrl}" target="_blank" rel="noopener" aria-label="Route naar ${station.title || 'tankstation'}">🧭 Route</a>` : ''}
+          <a class="route-btn"
+             href="${routeHref}"
+             target="_blank"
+             rel="noopener"
+             aria-label="Route naar ${station.title || 'tankstation'}">🧭 Route</a>
         </div>
       </div>`;
   }).join('');

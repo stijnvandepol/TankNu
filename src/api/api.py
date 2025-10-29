@@ -56,15 +56,19 @@ def get_session():
 
 LATEST_PRICE_SQL = text(
     """
-    SELECT p.* FROM fuel_station_prices p
+    SELECT p.* 
+    FROM fuel_station_prices p
     JOIN (
       SELECT station_id, fuel_type, MAX(collected_at) AS max_ts
       FROM fuel_station_prices
+      WHERE value_eur_per_l IS NOT NULL AND value_eur_per_l > 0
       GROUP BY station_id, fuel_type
-    ) last ON last.station_id = p.station_id
-          AND (last.fuel_type <=> p.fuel_type)
-          AND last.max_ts = p.collected_at
+    ) last 
+      ON last.station_id = p.station_id
+     AND (last.fuel_type <=> p.fuel_type)
+     AND last.max_ts = p.collected_at
     WHERE p.station_id = :sid
+      AND p.value_eur_per_l IS NOT NULL AND p.value_eur_per_l > 0
     ORDER BY p.fuel_type
     """
 )
@@ -144,6 +148,8 @@ def stations_nearby(
                 if fuel_type or max_price is not None or price_tier_max is not None:
                     filtered = []
                     for p in prices:
+                        if p["value_eur_per_l"] is None or p["value_eur_per_l"] <= 0:
+                            continue
                         if fuel_type and p["fuel_type"] != fuel_type:
                             continue
                         if max_price is not None and p["value_eur_per_l"] is not None and p["value_eur_per_l"] > max_price:
@@ -190,9 +196,11 @@ def stations_cheapest(
                 SELECT station_id, MAX(collected_at) AS max_ts
                 FROM fuel_station_prices
                 WHERE fuel_type = :ft
+                    AND value_eur_per_l IS NOT NULL AND value_eur_per_l > 0
                 GROUP BY station_id
               ) last ON last.station_id = p.station_id AND p.collected_at = last.max_ts
               WHERE p.fuel_type = :ft
+                AND p.value_eur_per_l IS NOT NULL AND p.value_eur_per_l > 0
             )
             SELECT n.*, l.fuel_type, l.value_eur_per_l, l.currency, l.price_tier_value, l.price_tier_max, l.collected_at
             FROM nearest n

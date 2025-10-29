@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Goedkoopste Tankstation</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⛽ Goedkoopste Tankstation</h1>
+      <p>Vind de beste prijzen bij jou in de buurt</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="nearby">📍 Bij mij</button>
+      <button class="tab" data-tab="nationwide">🏆 Landelijk</button>
+    </div>
+
+    <div id="nearby-tab" class="tab-content active">
+      <div class="card">
+        <div class="form-group">
+          <label>📍 Jouw locatie</label>
+          <div class="location-status" id="locationStatus">
+            <span class="icon">⏳</span>
+            <span>Locatie ophalen...</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="fuelType">⛽ Brandstoftype</label>
+          <select id="fuelType">
+            <option value="EURO95">Euro 95 (E10)</option>
+            <option value="EURO98">Euro 98 (E5)</option>
+            <option value="DIESEL">Diesel (B7)</option>
+            <option value="AUTOGAS">Autogas (LPG)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="radius">
+            📏 Zoekradius
+            <span class="slider-value" id="radiusValue">10 km</span>
+          </label>
+          <input type="range" id="radius" min="5" max="50" value="10" step="5">
+        </div>
+
+        <button class="btn" id="searchBtn">
+          Zoek goedkoopste stations
+        </button>
+      </div>
+
+      <div id="nearbyResults"></div>
+    </div>
+
+    <div id="nationwide-tab" class="tab-content">
+      <div class="info-box">
+        💡 <strong>Top landelijk:</strong> Dit zijn de absolute goedkoopste tankstations in heel Nederland, ongeacht locatie.
+      </div>
+
+      <div class="card">
+        <div class="form-group">
+          <label for="nationwideFuelType">⛽ Brandstoftype</label>
+          <select id="nationwideFuelType">
+            <option value="EURO95">Euro 95 (E10)</option>
+            <option value="EURO98">Euro 98 (E5)</option>
+            <option value="DIESEL">Diesel (B7)</option>
+            <option value="AUTOGAS">Autogas (LPG)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="limitSlider">
+            📊 Aantal resultaten
+            <span class="slider-value" id="limitValue">20</span>
+          </label>
+          <input type="range" id="limitSlider" min="10" max="50" value="20" step="5">
+        </div>
+
+        <button class="btn" id="nationwideBtn">
+          Toon goedkoopste landelijk
+        </button>
+      </div>
+
+      <div id="nationwideResults"></div>
+    </div>
+  </div>
+
+  <script src="assets/js/app.js" defer></script>
+</body>
+</html>

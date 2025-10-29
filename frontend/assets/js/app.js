@@ -127,19 +127,21 @@ async function searchNationwideStations() {
 // Bouw Google Maps route URL (bestemming op adres, fallback lat/lon)
 function buildDirectionsUrl(origin, destination) {
   if (!destination) return null;
-  let destStr = null;
-  if (destination.address && destination.address.trim().length > 0) {
-    destStr = destination.address.trim();
-  } else if (destination.lat != null && destination.lon != null) {
-    destStr = `${destination.lat},${destination.lon}`;
-  }
+
+  const destStr = destination.address?.trim() || `${destination.lat},${destination.lon}`;
   if (!destStr) return null;
 
-  if (origin && origin.lat != null && origin.lon != null) {
-    const orig = `${origin.lat},${origin.lon}`;
-    return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(orig)}&destination=${encodeURIComponent(destStr)}&travelmode=driving`;
+  const base = 'https://www.google.com/maps/dir/?api=1';
+  const params = new URLSearchParams({
+    destination: destStr,
+    travelmode: 'driving',
+  });
+
+  if (origin?.lat && origin?.lon) {
+    params.set('origin', `${origin.lat},${origin.lon}`);
   }
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destStr)}&travelmode=driving`;
+
+  return `${base}&${params.toString()}`;
 }
 
 function displayResults(stations, fuelType, targetElementId, showDistance) {

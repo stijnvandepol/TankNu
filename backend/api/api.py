@@ -49,6 +49,14 @@ class StationOut(BaseModel):
     distance_km: Optional[float] = None
     latest_prices: Optional[List[PriceOut]] = None
 
+
+class AvgPriceOut(BaseModel):
+    fuel_type: Optional[str] = None
+    avg_price: Optional[float] = None
+    sample_count: Optional[int] = None
+    run_timestamp: datetime
+    created_at: datetime
+
 # ---------- Helpers ----------
 
 def get_session():
@@ -299,3 +307,35 @@ def get_station(station_id: str):
             iso3_country_code=st.iso3_country_code,
             latest_prices=latest_prices,
         )
+
+
+    @app.get("/avg-prices/latest", response_model=List[AvgPriceOut])
+    def avg_prices_latest():
+        """Geef de meest recente gemiddelde prijs per brandstoftype terug."""
+        with get_session() as s:
+            sql = text(
+                """
+                SELECT ap.fuel_type, ap.avg_price, ap.sample_count, ap.run_timestamp, ap.created_at
+                FROM avg_fuel_prices ap
+                JOIN (
+                  SELECT fuel_type, MAX(run_timestamp) AS max_run
+                  FROM avg_fuel_prices
+                  GROUP BY fuel_type
+                ) last ON last.fuel_type <=> ap.fuel_type AND last.max_run = ap.run_timestamp
+                """
+            )
+            rows = s.execute(sql).mappings().all()
+            return [AvgPriceOut(**r) for r in rows]
+
+
+    @app.get("/avg-prices/history", response_model=List[AvgPriceOut])
+    def avg_prices_history(fuel_type: Optional[str] = Query(None, description="Filter op fuel_type (bv. EURO95, DIESEL)")):
+        """Geef historiek van gemiddelde prijzen terug. Optioneel filter op fuel_type."""
+        with get_session() as s:
+            if fuel_type:
+                sql = text("SELECT fuel_type, avg_price, sample_count, run_timestamp, created_at FROM avg_fuel_prices WHERE fuel_type = :ft ORDER BY run_timestamp DESC")
+                rows = s.execute(sql, {"ft": fuel_type}).mappings().all()
+            else:
+                sql = text("SELECT fuel_type, avg_price, sample_count, run_timestamp, created_at FROM avg_fuel_prices ORDER BY run_timestamp DESC")
+                rows = s.execute(sql).mappings().all()
+            return [AvgPriceOut(**r) for r in rows]

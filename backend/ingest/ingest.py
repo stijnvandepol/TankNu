@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
 from backend.config import Config
-from backend.models import Base, CoordinateTile, FuelStation, FuelStationPrice
+from backend.models import Base, CoordinateTile, FuelStation, FuelStationPrice, AvgFuelPrice
 from .endpoint_connector import EndpointClient
 from .tiler import generate_tiles
 from .utils import RateLimiter
@@ -118,6 +118,41 @@ def ingest_cycle():
                 session.commit()
                 logging.info(f"{processed} stations verwerkt…")
         session.commit()
+    # Bereken en sla gemiddelde prijs per brandstoftype op, gebaseerd op de laatste prijs per station
+    with SessionLocal() as session:
+        from sqlalchemy import text
+
+        avg_sql = text(
+            """
+            WITH last AS (
+              SELECT p.station_id, p.fuel_type, p.value_eur_per_l
+              FROM fuel_station_prices p
+              JOIN (
+                SELECT station_id, fuel_type, MAX(collected_at) AS max_ts
+                FROM fuel_station_prices
+                WHERE value_eur_per_l IS NOT NULL AND value_eur_per_l > 0
+                GROUP BY station_id, fuel_type
+              ) lastp ON lastp.station_id = p.station_id AND (lastp.fuel_type <=> p.fuel_type) AND lastp.max_ts = p.collected_at
+            )
+            SELECT fuel_type, AVG(value_eur_per_l) AS avg_price, COUNT(*) AS cnt
+            FROM last
+            GROUP BY fuel_type
+            """
+        )
+
+        rows = session.execute(avg_sql).mappings().all()
+        now = datetime.utcnow()
+        for r in rows:
+            rec = AvgFuelPrice(
+                fuel_type=r["fuel_type"],
+                avg_price=r["avg_price"],
+                sample_count=r["cnt"],
+                run_timestamp=now,
+            )
+            session.add(rec)
+        session.commit()
+        logging.info(f"Gemiddelde prijzen opgeslagen ({len(rows)} brandstoftypes).")
+
     logging.info("Run voltooid!")
 
 def main():

@@ -70,3 +70,20 @@ class FuelStationPrice(Base):
     __table_args__ = (
         Index("idx_station_fueltype_time", "station_id", "fuel_type", "collected_at"),
     )
+
+
+class AvgFuelPrice(Base):
+    __tablename__ = "avg_fuel_prices"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    fuel_type: Mapped[str | None] = mapped_column(String(64), index=True)
+    avg_price: Mapped[float | None] = mapped_column(Float)
+    sample_count: Mapped[int | None] = mapped_column(Integer)
+
+    # Tijdstip dat deze gemiddelde waarde toebehoort (bijv. einde van een ingest-run)
+    run_timestamp: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_avg_price_ft_rt", "fuel_type", "run_timestamp"),
+    )

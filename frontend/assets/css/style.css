@@ -614,6 +614,8 @@ input[type="range"]::-moz-range-thumb:active {
   .logo-icon {
     width: 48px;
     height: 48px;
+    flex-shrink: 0;
+    display: block;
   }
 
   .tabs {

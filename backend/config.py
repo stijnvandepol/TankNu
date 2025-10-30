@@ -33,6 +33,9 @@ class Config:
     # Retentie voor raw price records (dagen). Alle prijsrecords ouder dan deze
     # waarde worden opgeruimd, behalve de laatste prijs per station+fuel_type.
     PRICE_RETENTION_DAYS = int(os.getenv("PRICE_RETENTION_DAYS", "7"))
+    # Scheduler sleep chunk (in seconden). De scheduler slaapt in blokken van
+    # maximaal deze grootte zodat we niet elke seconde wakker worden. Standaard 60s.
+    SCHEDULER_SLEEP_CHUNK_SECONDS = int(os.getenv("SCHEDULER_SLEEP_CHUNK_SECONDS", "60"))
 
     @staticmethod
     def db_uri() -> str:

@@ -20,7 +20,6 @@ logging.basicConfig(
     level=getattr(logging, Config.LOG_LEVEL.upper(), logging.INFO),
     format="%(asctime)s %(levelname)s %(message)s",
 )
-
 engine = create_engine(Config.db_uri(), pool_pre_ping=True, echo=False, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
@@ -31,6 +30,7 @@ def handle_sigterm(*_):
     _shutdown = True
     logging.info("Stopverzoek ontvangen. Wacht tot einde huidige cyclus...")
 signal.signal(signal.SIGTERM, handle_sigterm)
+
 
 def upsert_station(session, payload: dict):
     s = payload
@@ -182,7 +182,17 @@ def ingest_cycle():
     logging.info("Run voltooid!")
 
 def main():
-    logging.info("Start ingest-scheduler: ingest wordt elke uur uitgevoerd op minuut :30 ")
+    logging.info("Start ingest-scheduler: eerste run wordt direct uitgevoerd, daarna elk uur op :30 (UTC)")
+
+    # Eerste run direct bij startup (tenzij er al een shutdown is aangevraagd)
+    if not _shutdown:
+        logging.info("Start eerste (directe) ingest-run bij startup...")
+        try:
+            ingest_cycle()
+        except Exception as e:
+            logging.error(f"Fout in eerste ingest-cycle: {e}")
+
+    # Scheduler loop: plan volgende runs op elk uur:30
     while not _shutdown:
         now = datetime.utcnow()
         next_run = now.replace(minute=30, second=0, microsecond=0)
@@ -192,9 +202,9 @@ def main():
         wait_seconds = (next_run - now).total_seconds()
         logging.info(f"Volgende ingest-run gepland op {next_run.isoformat()} UTC (in {wait_seconds/60:.1f} minuten)")
 
-        # Wacht tot volgende run, controleer periodiek op shutdown
+        chunk = max(1, Config.SCHEDULER_SLEEP_CHUNK_SECONDS)
         while wait_seconds > 0 and not _shutdown:
-            to_sleep = min(1.0, wait_seconds)
+            to_sleep = min(chunk, wait_seconds)
             time.sleep(to_sleep)
             wait_seconds -= to_sleep
 

@@ -49,6 +49,7 @@ window.addEventListener('load', () => {
       };
       statusEl.className = 'location-status';
       statusEl.innerHTML = '<span class="icon">✅</span><span>Locatie gevonden</span>';
+      // Populate manual input with blank or leave as-is
     },
     (error) => {
       console.error('Location error:', error);
@@ -56,6 +57,8 @@ window.addEventListener('load', () => {
       statusEl.innerHTML = '<span class="icon">⚠️</span><span>Geen toegang tot locatie</span>';
     }
   );
+  // Initialize manual location input handlers
+  setupManualLocation();
 });
 
 // ===== EVENT LISTENERS =====
@@ -469,3 +472,98 @@ function formatTime(dateInput) {
   if (!date || isNaN(date.getTime())) return 'Onbekend';
   return date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
+
+// -------------------- Manual location autocomplete --------------------
+function debounce(fn, wait) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  };
+}
+
+function setupManualLocation() {
+  const input = document.getElementById('manualLocationInput');
+  const list = document.getElementById('locationSuggestions');
+  if (!input || !list) return;
+
+  const doSearch = debounce(async (q) => {
+    if (!q || q.length < 2) {
+      list.innerHTML = '';
+      list.style.display = 'none';
+      return;
+    }
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&addressdetails=1&limit=6&countrycodes=nl`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'nl' } });
+      if (!res.ok) throw new Error('geocode error');
+      const items = await res.json();
+      renderLocationSuggestions(items);
+    } catch (e) {
+      console.warn('Location suggestion error', e);
+      list.innerHTML = '';
+      list.style.display = 'none';
+    }
+  }, 300);
+
+  input.addEventListener('input', (e) => {
+    doSearch(e.target.value);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      list.innerHTML = '';
+      list.style.display = 'none';
+    }
+  });
+
+  function renderLocationSuggestions(items) {
+    const html = items.map(it => {
+      const display = it.display_name;
+      return `<div class="suggestion-item" data-lat="${it.lat}" data-lon="${it.lon}" data-display="${escapeHtml(display)}">${escapeHtml(display)}</div>`;
+    }).join('');
+    list.innerHTML = html;
+    if (items.length > 0) {
+      list.style.display = 'block';
+      Array.from(list.querySelectorAll('.suggestion-item')).forEach(el => {
+        el.addEventListener('click', () => {
+          const lat = parseFloat(el.dataset.lat);
+          const lon = parseFloat(el.dataset.lon);
+          const display = el.dataset.display;
+          selectManualLocation({ lat, lon, display });
+        });
+      });
+    } else {
+      list.style.display = 'none';
+    }
+  }
+}
+
+function selectManualLocation({ lat, lon, display }) {
+  userLocation = { lat, lon };
+  const statusEl = document.getElementById('locationStatus');
+  statusEl.className = 'location-status';
+  statusEl.innerHTML = `<span class="icon">📍</span><span>${display}</span>`;
+  // hide suggestions
+  const list = document.getElementById('locationSuggestions');
+  if (list) { list.innerHTML = ''; list.style.display = 'none'; }
+  // fill input value
+  const input = document.getElementById('manualLocationInput');
+  if (input) input.value = display;
+
+  // optionally trigger a nearby search if on the nearby tab
+  const activeTab = document.querySelector('.tab.active');
+  if (activeTab && activeTab.dataset.tab === 'nearby') {
+    // run search automatically
+    searchNearbyStations();
+  }
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, function (s) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[s];
+  });
+}
+
+// Note: this uses Nominatim (OpenStreetMap) for suggestions which is fine for light use and testing.
+// For production consider using a geocoding service with an API key (Mapbox, Here, Google) or proxy requests via your backend to avoid rate limits and identify your app.

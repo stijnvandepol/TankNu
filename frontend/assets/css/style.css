@@ -654,3 +654,42 @@ input[type="range"]::-moz-range-thumb:active {
     height: 320px !important;
   }
 }
+
+.manual-location {
+  margin-top: 10px;
+  position: relative;
+}
+
+.manual-location input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  z-index: 50;
+  max-height: 220px;
+  overflow: auto;
+  display: none; /* shown when populated */
+}
+
+.suggestion-item {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--gray-700);
+  cursor: pointer;
+}
+
+.suggestion-item:hover {
+  background: var(--gray-50);
+}

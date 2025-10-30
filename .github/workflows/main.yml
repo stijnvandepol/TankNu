@@ -17,6 +17,7 @@ jobs:
     env:
       COMPOSE_PROJECT_NAME: tanknu
       DB_VOLUME_NAME: tanknu_dbdata
+      INGEST_SERVICE_NAME: ingest-1
 
     steps:
       - name: Pre-clean workspace
@@ -61,7 +62,6 @@ jobs:
           DB_VOL="${DB_VOLUME_NAME}"
 
           echo ">>> Compose down (containers/networks/images) zonder volumes eerst"
-          # We doen bewust géén --volumes hier zodat $DB_VOL niet meteen weg is
           $DC down --remove-orphans --rmi all || true
 
           echo ">>> Alle containers die nog draaien op host stoppen (safety, idempotent)"
@@ -72,12 +72,7 @@ jobs:
             docker rm -f $(docker ps -aq) || true
           fi
 
-          echo ">>> Hernoem DB volume tijdelijk zodat we 'm niet weggooien"
-          # We gaan de volumes die NIET db zijn wipen.
-          # Docker kent geen 'rename volume', dus we beschermen via filter.
-          # Strategie:
-          #   - lijst alle volumes
-          #   - verwijder alles behalve $DB_VOL
+          echo ">>> Alle volumes behalve DB volume verwijderen"
           ALL_VOLS=$(docker volume ls -q)
           for V in $ALL_VOLS; do
             if [ "$V" != "$DB_VOL" ]; then
@@ -104,6 +99,91 @@ jobs:
 
           echo ">>> Bring stack up clean using existing DB volume"
           $DC up -d --remove-orphans --renew-anon-volumes
+
+      # 👇 DIT IS DE NIEUWE MAGIE
+      - name: Wait for ingest & stream logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          DC="${{ steps.dccmd.outputs.cmd }}"
+          SERVICE="${INGEST_SERVICE_NAME}"
+
+          echo ">>> Zoeken naar container ID voor service '$SERVICE'..."
+          CONTAINER_ID="$($DC ps -q $SERVICE)"
+
+          if [ -z "$CONTAINER_ID" ]; then
+            echo "FATAL: kon geen container vinden voor service '$SERVICE'"
+            $DC ps
+            exit 1
+          fi
+
+          echo ">>> Container gevonden: $CONTAINER_ID"
+          echo ">>> Wachten tot container draait (of faalt)..."
+
+          # wacht-lus: check status en eventueel health, max ~60 iteraties (60s)
+          ATTEMPTS=0
+          MAX_ATTEMPTS=60
+          while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+            STATUS=$(docker inspect -f '{{.State.Status}}' "$CONTAINER_ID")
+            HEALTH=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$CONTAINER_ID")
+
+            echo "Status: $STATUS (health: $HEALTH)"
+
+            # status kan zijn: created / restarting / running / exited / dead
+            if [ "$STATUS" = "exited" ] || [ "$STATUS" = "dead" ]; then
+              echo "Container is gestopt met status '$STATUS'. Logs hieronder:"
+              docker logs --tail=200 "$CONTAINER_ID" || true
+              exit 1
+            fi
+
+            # als er een healthcheck is en die is healthy -> goed genoeg, break
+            if [ "$STATUS" = "running" ] && [ "$HEALTH" = "healthy" ]; then
+              echo "Container is running en healthy."
+              break
+            fi
+
+            # als er géén healthcheck (health == "none") maar status is running -> we gaan door
+            if [ "$STATUS" = "running" ] && [ "$HEALTH" = "none" ]; then
+              echo "Container draait (geen healthcheck gedefinieerd)."
+              break
+            fi
+
+            ATTEMPTS=$((ATTEMPTS+1))
+            sleep 1
+          done
+
+          # als we hier uit de loop zijn zonder exit 1 dan draait ie (of lijkt ie ok)
+          echo ">>> Live logs (laatste 200 regels, daarna volgen)..."
+          # -f volgt de logs streamend zolang de job bezig is
+          # we doen een timeout-achtige constructie zodat dit niet oneindig hangt als het gewoon goed is
+          # We gebruiken stdbuf om realtime output af te dwingen
+          if command -v stdbuf >/dev/null 2>&1; then
+            stdbuf -oL -eL docker logs -f --tail=200 "$CONTAINER_ID" &
+          else
+            docker logs -f --tail=200 "$CONTAINER_ID" &
+          fi
+          
+          LOG_PID=$!
+
+          # wacht nog een korte periode zodat we de startup output echt zien.
+          # Als de container ondertussen crasht -> fail.
+          SLEEP_CHECKS=0
+          MAX_SLEEP_CHECKS=20
+          while [ $SLEEP_CHECKS -lt $MAX_SLEEP_CHECKS ]; do
+            STATUS=$(docker inspect -f '{{.State.Status}}' "$CONTAINER_ID")
+            if [ "$STATUS" = "exited" ] || [ "$STATUS" = "dead" ]; then
+              echo "Container stopte tijdens init-phase. Final logs:"
+              docker logs --tail=200 "$CONTAINER_ID" || true
+              kill $LOG_PID || true
+              exit 1
+            fi
+            sleep 1
+            SLEEP_CHECKS=$((SLEEP_CHECKS+1))
+          done
+
+          echo ">>> Container lijkt stabiel. Stop log streaming."
+          kill $LOG_PID || true
+          wait $LOG_PID || true
 
       - name: Status
         shell: bash

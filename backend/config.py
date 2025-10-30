@@ -16,9 +16,9 @@ class Config:
     TILE_SIZE_LON = 0.30
 
     # throttle / ingest cadence / filtering
-    REQUESTS_PER_SECOND = 10               # API Calls per seconde standaard 10
+    REQUESTS_PER_SECOND = 20                    # API Calls per seconde standaard 10
     LOG_LEVEL = "INFO"
-    COUNTRY_FILTER = ""                     # Voor enkel nederland voer NLD in
+    COUNTRY_FILTER = "NLD"                      # Voor enkel nederland voer NLD in
     INGEST_INTERVAL_MINUTES = 60 
     SCHEDULER_SLEEP_CHUNK_SECONDS = 60
 

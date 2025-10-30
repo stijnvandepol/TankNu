@@ -1,7 +1,11 @@
-* { 
-  margin: 0; 
-  padding: 0; 
-  box-sizing: border-box; 
+/* =========================================================
+   0. RESET / GLOBAL TOKENS
+========================================================= */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 :root {
@@ -13,6 +17,7 @@
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
+
   --gray-50: #f9fafb;
   --gray-100: #f3f4f6;
   --gray-200: #e5e7eb;
@@ -23,11 +28,20 @@
   --gray-700: #374151;
   --gray-800: #1f2937;
   --gray-900: #111827;
+
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1),
+            0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1),
+               0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1),
+               0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
+
+
+/* =========================================================
+   1. BASE DOCUMENT LAYER
+========================================================= */
 
 html {
   min-height: 100%;
@@ -47,12 +61,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.container { 
-  max-width: 640px; 
-  margin: 0 auto; 
+.container {
+  max-width: 640px;
+  margin: 0 auto;
 }
 
-/* ===== HEADER & LOGO / HELP BUTTON ===== */
+
+/* =========================================================
+   2. HEADER / BRANDING / HELP BUTTON
+========================================================= */
 
 .header {
   color: white;
@@ -65,7 +82,7 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: center; /* logo gecentreerd */
-  min-height: 42px; /* zodat de help-button ruimte heeft */
+  min-height: 42px;        /* ruimte voor help-button rechtsboven */
   margin-bottom: 8px;
 }
 
@@ -91,7 +108,6 @@ body {
   -webkit-tap-highlight-color: transparent;
   cursor: pointer;
 }
-
 .help-button:active {
   transform: scale(0.95);
 }
@@ -101,9 +117,8 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  /* centraal uitlijnen */
   margin: 0 auto;
-  padding-right: 48px; /* visuele balans met de help-button rechtsboven */
+  padding-right: 48px; /* visuele balans met help-button rechtsboven */
 }
 
 .logo-icon {
@@ -124,15 +139,10 @@ body {
   align-items: baseline;
 }
 
-.logo-tank {
-  color: #fff;
-}
+.logo-tank   { color: #fff; }
+.logo-nu     { color: #fbbf24; }
 
-.logo-nu {
-  color: #fbbf24;
-}
-
-/* tagline direct ONDER logo */
+/* tagline onder logo */
 .logo-tagline {
   font-size: 14px;
   font-weight: 500;
@@ -145,10 +155,10 @@ body {
   max-width: 90%;
 }
 
-/* legacy ".tagline" class, blijft bestaan voor responsive tweaks */
-.tagline { 
-  font-size: 14px; 
-  opacity: 0.95; 
+/* legacy variant */
+.tagline {
+  font-size: 14px;
+  opacity: 0.95;
   font-weight: 500;
 }
 
@@ -158,15 +168,19 @@ body {
   color: var(--gray-500);
   font-weight: 600;
   margin-top: 8px;
-  display: none; /* hidden tot JS het vult */
+  display: none; /* JS togglet naar block */
 }
 
-/* ===== TABS ===== */
-.tabs { 
+
+/* =========================================================
+   3. TABS / TAB CONTENT
+========================================================= */
+
+.tabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px; 
-  margin-bottom: 20px; 
+  gap: 8px;
+  margin-bottom: 20px;
 }
 
 .tab {
@@ -186,7 +200,6 @@ body {
   backdrop-filter: blur(10px);
   -webkit-tap-highlight-color: transparent;
 }
-
 .tab:active {
   transform: scale(0.97);
 }
@@ -201,21 +214,24 @@ body {
   white-space: nowrap;
 }
 
-.tab.active { 
-  background: white; 
+.tab.active {
+  background: white;
   color: var(--primary);
   box-shadow: var(--shadow-md);
 }
 
-.tab-content { 
-  display: none; 
+.tab-content {
+  display: none;
+}
+.tab-content.active {
+  display: block;
 }
 
-.tab-content.active { 
-  display: block; 
-}
 
-/* ===== CARDS ===== */
+/* =========================================================
+   4. CARDS (PANELTJE IN DE UI)
+========================================================= */
+
 .card {
   background: white;
   border-radius: 16px;
@@ -231,27 +247,31 @@ body {
   margin-bottom: 16px;
 }
 
-/* ===== FORM ELEMENTS ===== */
-.form-group { 
-  margin-bottom: 20px; 
+
+/* =========================================================
+   5. FORM ELEMENTEN / INPUTS / SLIDERS
+========================================================= */
+
+.form-group {
+  margin-bottom: 20px;
+}
+.form-group:last-child {
+  margin-bottom: 0;
 }
 
-.form-group:last-child { 
-  margin-bottom: 0; 
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--gray-700);
+  font-size: 14px;
 }
 
-label { 
-  display: block; 
-  font-weight: 600; 
-  margin-bottom: 8px; 
-  color: var(--gray-700); 
-  font-size: 14px; 
-}
-
+/* locatie status (gps / error / etc.) */
 .location-status {
-  display: flex; 
-  align-items: center; 
-  gap: 8px; 
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 12px;
   background: var(--gray-50);
   border: 1px solid var(--gray-200);
@@ -260,23 +280,21 @@ label {
   color: var(--gray-700);
   font-weight: 500;
 }
-
-.location-status.loading { 
-  background: #fef3c7; 
+.location-status.loading {
+  background: #fef3c7;
   border-color: #fde68a;
-  color: #92400e; 
+  color: #92400e;
 }
-
-.location-status.error { 
-  background: #fee2e2; 
+.location-status.error {
+  background: #fee2e2;
   border-color: #fecaca;
-  color: #991b1b; 
+  color: #991b1b;
+}
+.location-status .icon {
+  font-size: 16px;
 }
 
-.location-status .icon { 
-  font-size: 16px; 
-}
-
+/* handmatige locatie invoer + suggesties */
 .manual-location {
   margin-top: 10px;
   position: relative;
@@ -290,7 +308,6 @@ label {
   font-size: 14px;
   color: var(--gray-800);
 }
-
 .manual-location input[type="text"]::placeholder {
   color: var(--gray-400);
 }
@@ -307,7 +324,7 @@ label {
   z-index: 50;
   max-height: 220px;
   overflow: auto;
-  display: none; /* JS toont 'm */
+  display: none; /* JS togglet dit */
 }
 
 .suggestion-item {
@@ -316,11 +333,11 @@ label {
   color: var(--gray-700);
   cursor: pointer;
 }
-
 .suggestion-item:hover {
   background: var(--gray-50);
 }
 
+/* selects */
 select {
   width: 100%;
   padding: 12px 14px;
@@ -339,20 +356,19 @@ select {
   background-size: 20px;
   padding-right: 40px;
 }
-
-select:focus { 
-  outline: none; 
+select:focus {
+  outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
 }
 
-.slider-container { 
-  position: relative; 
+/* sliders */
+.slider-container {
+  position: relative;
 }
-
-.slider-value { 
-  float: right; 
-  font-weight: 700; 
+.slider-value {
+  float: right;
+  font-weight: 700;
   color: var(--primary);
   font-size: 14px;
 }
@@ -368,7 +384,6 @@ input[type="range"] {
   margin-top: 8px;
   cursor: pointer;
 }
-
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -380,11 +395,9 @@ input[type="range"]::-webkit-slider-thumb {
   transition: all 0.2s;
   box-shadow: var(--shadow);
 }
-
 input[type="range"]::-webkit-slider-thumb:active {
   transform: scale(1.1);
 }
-
 input[type="range"]::-moz-range-thumb {
   width: 20px;
   height: 20px;
@@ -395,12 +408,15 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: var(--shadow);
   transition: all 0.2s;
 }
-
 input[type="range"]::-moz-range-thumb:active {
   transform: scale(1.1);
 }
 
-/* ===== BUTTONS ===== */
+
+/* =========================================================
+   6. BUTTONS
+========================================================= */
+
 .btn {
   width: 100%;
   padding: 14px 20px;
@@ -419,13 +435,11 @@ input[type="range"]::-moz-range-thumb:active {
   color: white;
   box-shadow: var(--shadow-md);
 }
-
 .btn-primary:hover {
   background: var(--primary-dark);
   transform: translateY(-1px);
   box-shadow: var(--shadow-lg);
 }
-
 .btn-primary:active {
   transform: translateY(0);
   box-shadow: var(--shadow);
@@ -437,9 +451,13 @@ input[type="range"]::-moz-range-thumb:active {
   transform: none !important;
 }
 
-/* ===== RESULTS ===== */
-.results { 
-  margin-top: 20px; 
+
+/* =========================================================
+   7. RESULTATEN / STATION CARDS
+========================================================= */
+
+.results {
+  margin-top: 20px;
 }
 
 .station-card {
@@ -469,15 +487,12 @@ input[type="range"]::-moz-range-thumb:active {
   color: white;
   box-shadow: var(--shadow);
 }
-
 .rank-badge.gold {
   background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
 }
-
 .rank-badge.silver {
   background: linear-gradient(135deg, #d1d5db 0%, #9ca3af 100%);
 }
-
 .rank-badge.bronze {
   background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
 }
@@ -503,7 +518,6 @@ input[type="range"]::-moz-range-thumb:active {
   color: var(--primary);
   white-space: nowrap;
 }
-
 .price-unit {
   font-size: 13px;
   color: var(--gray-500);
@@ -552,13 +566,16 @@ input[type="range"]::-moz-range-thumb:active {
   transition: all 0.2s;
   -webkit-tap-highlight-color: transparent;
 }
-
 .route-btn:active {
   transform: scale(0.97);
   background: var(--gray-50);
 }
 
-/* ===== INFO BOX ===== */
+
+/* =========================================================
+   8. INFO BOXEN / STATES / FEEDBACK
+========================================================= */
+
 .info-box {
   background: #dbeafe;
   border-left: 3px solid var(--primary);
@@ -570,13 +587,12 @@ input[type="range"]::-moz-range-thumb:active {
   line-height: 1.5;
 }
 
-/* ===== LOADING & ERROR ===== */
+/* Loading / error / empty states */
 .loading-spinner {
   text-align: center;
   padding: 40px 20px;
   color: white;
 }
-
 .spinner {
   display: inline-block;
   width: 36px;
@@ -586,7 +602,6 @@ input[type="range"]::-moz-range-thumb:active {
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
-
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -606,19 +621,21 @@ input[type="range"]::-moz-range-thumb:active {
   padding: 40px 20px;
   color: white;
 }
-
 .no-results-icon {
   font-size: 48px;
   margin-bottom: 12px;
   opacity: 0.9;
 }
-
 .no-results h3 {
   font-size: 18px;
   margin-bottom: 6px;
 }
 
-/* ===== PRIJSDATA TAB ===== */
+
+/* =========================================================
+   9. PRIJSDATA / GRAFIEK
+========================================================= */
+
 .current-price-display {
   text-align: center;
   padding: 20px 0;
@@ -644,36 +661,36 @@ input[type="range"]::-moz-range-thumb:active {
   margin-top: 12px;
 }
 
-/* ===== HELP OVERLAY ===== */
+
+/* =========================================================
+   10. HELP OVERLAY (MODAL)
+========================================================= */
 
 .help-overlay {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(15, 23, 42, 0.7); /* donker glas */
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  display: none; /* verborgen standaard */
-  align-items: center;
+  background: rgba(0,0,0,0.55);
+  display: none;                /* .active maakt 'm zichtbaar */
   justify-content: center;
+  align-items: center;
   padding: 16px;
 }
-
 .help-overlay.active {
   display: flex;
 }
 
 .help-panel {
-  background: #ffffff;
-  color: #1f2937;
-  max-width: 480px;
-  width: 100%;
-  max-height: 90vh;
+  background: #fff;
+  color: #111;
   border-radius: 16px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-  position: relative;
+  box-shadow: 0 24px 48px rgba(0,0,0,0.2);
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
+  position: relative;
   overflow: hidden;
 }
 
@@ -681,100 +698,135 @@ input[type="range"]::-moz-range-thumb:active {
   position: absolute;
   top: 12px;
   right: 12px;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: rgba(0,0,0,0.05);
-  color: #1f2937;
-  font-size: 16px;
+  background: transparent;
+  border: 0;
+  font-size: 1.25rem;
   line-height: 1;
-  border: none;
-  font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  padding: 8px;
+  border-radius: 8px;
+  color: #111;
+  z-index: 2;
 }
-
-.help-close:active {
-  transform: scale(0.95);
+.help-close:active,
+.help-close:focus-visible {
+  outline: 2px solid #1e40af;
+  outline-offset: 2px;
 }
 
 .help-content {
-  padding: 24px 20px 16px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  flex: 1;
+  padding: 48px 16px 16px 16px;
+  flex: 1 1 auto;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #1f2937;
 }
 
 .help-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1e3a8a;
-  margin-bottom: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #111827;
+  margin: 0 0 12px 0;
 }
 
 .help-text {
-  font-size: 14px;
-  line-height: 1.5;
-  color: #374151;
-  margin-bottom: 20px;
+  margin: 0 0 16px 0;
 }
 
 .help-section {
-  font-size: 14px;
-  font-weight: 700;
-  color: #1f2937;
-  margin-bottom: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 24px 0 8px 0;
 }
 
 .help-list {
-  font-size: 14px;
-  line-height: 1.5;
+  padding-left: 20px;
+  margin: 0 0 16px 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
   color: #374151;
-  margin-bottom: 20px;
-  padding-left: 18px;
 }
-
 .help-list li {
   margin-bottom: 8px;
 }
 
-.install-instructions {
-  font-size: 14px;
-  line-height: 1.5;
-  color: #374151;
+.install-instructions p {
+  margin: 16px 0 8px 0;
+  font-weight: 500;
+  color: #111827;
+  font-size: 0.9rem;
 }
-
 .install-instructions ol {
   padding-left: 20px;
-  margin-bottom: 16px;
+  margin: 0 0 16px 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: #374151;
 }
-
 .install-instructions li {
   margin-bottom: 6px;
-  font-size: 14px;
 }
 
 .help-footer {
+  flex-shrink: 0;
+  background: #fff;
+  border-top: 1px solid rgba(0,0,0,0.07);
   padding: 12px 16px;
-  background: #f3f4f6;
-  font-size: 13px;
-  color: #4b5563;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #6b7280;
   text-align: center;
-  border-top: 1px solid #e5e7eb;
 }
 
 .help-credit {
-  font-weight: 600;
-  color: var(--primary);
+  color: #1e40af;
   text-decoration: none;
+  font-weight: 500;
+}
+.help-credit:hover,
+.help-credit:focus-visible {
+  text-decoration: underline;
+  outline: 0;
 }
 
-.help-credit:active {
-  opacity: 0.7;
+
+/* =========================================================
+   11. GLOBAL CREDIT (BUITEN MODAL)
+========================================================= */
+
+.app-footer-credit {
+  /* standaard styling; positie kan worden aangepast in media queries */
+  text-align: center;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #6b7280;
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 400;
+}
+.app-footer-credit a {
+  color: #1e40af;
+  text-decoration: none;
+  font-weight: 500;
+}
+.app-footer-credit a:hover,
+.app-footer-credit a:focus-visible {
+  text-decoration: underline;
+  outline: 0;
 }
 
-/* ===== RESPONSIVE ===== */
+
+/* =========================================================
+   12. RESPONSIVE BREAKPOINTS
+========================================================= */
+
+/* ---------- Mobile (<=480px) ---------- */
 @media (max-width: 480px) {
+
   body {
     padding: 12px;
   }
@@ -790,7 +842,6 @@ input[type="range"]::-moz-range-thumb:active {
   .logo-text {
     font-size: 28px;
   }
-
   .logo-icon {
     width: 36px;
     height: 36px;
@@ -804,15 +855,12 @@ input[type="range"]::-moz-range-thumb:active {
   .tabs {
     gap: 6px;
   }
-
   .tab {
     padding: 8px 6px;
   }
-
   .tab-icon {
     font-size: 16px;
   }
-
   .tab-label {
     font-size: 11px;
   }
@@ -820,11 +868,9 @@ input[type="range"]::-moz-range-thumb:active {
   .station-card {
     padding: 14px;
   }
-
   .station-name {
     font-size: 15px;
   }
-
   .station-price {
     font-size: 20px;
   }
@@ -837,30 +883,73 @@ input[type="range"]::-moz-range-thumb:active {
     height: 240px !important;
   }
 
+  /* Help overlay: mobiel = fullscreen gevoel */
+  .help-overlay {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
   .help-panel {
+    width: 100%;
     max-width: 100%;
     max-height: 100vh;
-    border-radius: 20px;
+    height: 100vh;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .help-content {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 48px 16px 16px 16px;
+    font-size: 1rem;
+    line-height: 1.5;
   }
 
   .help-title {
-    font-size: 16px;
+    font-size: 1.05rem;
+    line-height: 1.3;
+    margin: 0 0 12px 0;
   }
 
   .help-text,
   .help-list,
   .install-instructions,
   .install-instructions li {
-    font-size: 14px;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .help-footer {
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    padding: 12px 16px 16px;
+    text-align: center;
   }
 
   .help-close {
-    top: 10px;
-    right: 10px;
+    top: 8px;
+    right: 8px;
+    font-size: 1.4rem;
+    padding: 12px;
+    line-height: 1;
   }
+
+  /* Als je de credit juist NIET sticky op mobiel wil maar gewoon onder de content,
+     dan laten we .app-footer-credit hier met default margins werken.
+     Wil je 'm sticky onderin óók op mobiel? verplaats de fixed-styles van de
+     min-width:768px block hieronder heen. */
 }
 
+
+/* ---------- Desktop-ish (>=768px) ---------- */
 @media (min-width: 768px) {
+
   body {
     padding: 32px 20px;
   }
@@ -872,7 +961,6 @@ input[type="range"]::-moz-range-thumb:active {
   .logo-text {
     font-size: 36px;
   }
-
   .logo-icon {
     width: 48px;
     height: 48px;
@@ -884,7 +972,6 @@ input[type="range"]::-moz-range-thumb:active {
     gap: 10px;
     margin-bottom: 24px;
   }
-
   .tab {
     padding: 12px 16px;
   }
@@ -895,5 +982,33 @@ input[type="range"]::-moz-range-thumb:active {
 
   #priceChart {
     height: 320px !important;
+  }
+
+  /* Sticky credit onderin scherm op grotere viewports */
+  .app-footer-credit {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 8px;
+    text-align: center;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: #6b7280;
+    background: #fff;
+    z-index: 5000;
+    padding: 6px 8px 8px;
+    margin: 0; /* margin niet nodig als hij fixed zit */
+    font-weight: 400;
+  }
+
+  .app-footer-credit a {
+    color: #1e40af;
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .app-footer-credit a:hover,
+  .app-footer-credit a:focus-visible {
+    text-decoration: underline;
+    outline: 0;
   }
 }

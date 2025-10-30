@@ -177,49 +177,16 @@ Check of de reverse proxy goed is ingesteld. De frontend verwacht `/api` te bere
 ```bash
 curl http://localhost:8080/health
 ```
-
-**"Grafiek in Prijsdata tab laadt niet"**
-Betekent dat er geen data is in `avg_fuel_prices`. Check of de ingester draait en genoeg tijd heeft gehad om data te verzamelen:
-```bash
-docker compose logs -f app
-```
-
 **"Locatie werkt niet in frontend"**
 Moet HTTPS zijn (of localhost). Browsers geven alleen op veilige verbindingen locatie-toegang. Voor development is localhost prima.
-
-**"Database connectie mislukt"**
-PostgreSQL heeft soms 10-20 seconden nodig bij opstarten. Wacht even en probeer opnieuw. De containers hebben retry-logica ingebouwd.
-
-## 🎨 Frontend customization
-
-De TankNu frontend is volledig te customizen. Alles zit in `/frontend`:
-
-**Kleuren aanpassen**
-Bewerk `assets/css/style.css` – bovenaan staan CSS variables:
-```css
-:root {
-  --primary: #1e40af;     /* hoofdkleur */
-  --accent: #fbbf24;      /* accent (goud) */
-  --secondary: #0ea5e9;   /* secundair */
-}
-```
-
-**Logo vervangen**
-Er zit een SVG logo in `/frontend/logo.svg`. Vervang dit met je eigen logo en pas de HTML aan in `index.html`.
-
-**Teksten aanpassen**
-Alle teksten zitten direct in `index.html` en `app.js`. Geen build process, gewoon bewerken en refreshen.
 
 ## 📱 Browser support
 
 Frontend werkt op:
-- Chrome 90+
-- Firefox 88+  
-- Safari 14+
-- Edge 90+
-- Mobile browsers (iOS Safari 14+, Chrome Android 90+)
-
-Oude IE? Vergeet het maar.
+- Chrome
+- Firefox 
+- Safari
+- Edge
 
 ## 🔐 Privacy
 
@@ -230,33 +197,3 @@ De frontend vraagt om je locatie voor de "Bij mij" functie. Deze locatie:
 - Wordt nooit gedeeld
 
 Backend logt geen persoonlijke data. Alleen anonieme stats zoals aantal API calls en errors.
-
-## 📈 Toekomst
-
-Wat er nog aan kan komen – of beter gezegd, wat ik misschien nog bouw als ik tijd heb:
-
-- [ ] Progressive Web App (offline support, home screen icon)
-- [ ] Push notifications bij prijsdalingen
-- [ ] Favoriete stations opslaan (localStorage of account systeem)
-- [ ] Dark mode
-- [ ] Meerdere brandstoftypes tegelijk vergelijken
-- [ ] Prijsalarmen instellen per station
-- [ ] Export van prijsdata naar CSV/Excel
-- [ ] Historische prijsdata langer dan 30 dagen
-- [ ] Betere mobile app (React Native?)
-
-Maar nu werkt het gewoon goed zoals het is.
-
-## 🤝 Bijdragen
-
-Issues en pull requests zijn welkom. Voor grote veranderingen, open eerst een issue om te bespreken wat je wilt wijzigen.
-
-## 📄 Licentie
-
-Proprietary voor nu. Alle rechten voorbehouden.
-
----
-
-**TankNu** – Tank slim, tank nu. 🚗⛽
-
-Vragen? Open een issue op GitHub.

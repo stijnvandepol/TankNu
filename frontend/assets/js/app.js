@@ -93,6 +93,26 @@ async function searchNearbyStations() {
     if (!res.ok) throw new Error(`API error: ${res.status}`);
     const stations = await res.json();
     displayResults(stations, fuelType, 'nearbyResults', true);
+    // Update small 'Bijgewerkt' label using latest avg run timestamp for this fuel
+    try {
+      const latestRes = await fetch(`${API_BASE}/avg-prices/latest`);
+      if (latestRes.ok) {
+        const latestData = await latestRes.json();
+        const cur = latestData.find(i => i.fuel_type === fuelType);
+        const el = document.getElementById('nearbyUpdated');
+        if (cur) {
+          const runRaw = cur.run_timestamp || cur.created_at;
+          const runDate = parseTimestamp(runRaw);
+          el.textContent = `Bijgewerkt ${formatTime(runDate)}`;
+          el.title = runDate ? runDate.toISOString() : '';
+          el.style.display = 'block';
+        } else {
+          el.style.display = 'none';
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch avg-prices for update label', e);
+    }
   } catch (err) {
     console.error('Search error:', err);
     showError('nearbyResults', 'Kan geen stations ophalen. Controleer of de API bereikbaar is.');
@@ -119,6 +139,26 @@ async function searchNationwideStations() {
     if (!res.ok) throw new Error(`API error: ${res.status}`);
     const stations = await res.json();
     displayResults(stations, fuelType, 'nationwideResults', false);
+    // Update small 'Bijgewerkt' label for nationwide panel
+    try {
+      const latestRes = await fetch(`${API_BASE}/avg-prices/latest`);
+      if (latestRes.ok) {
+        const latestData = await latestRes.json();
+        const cur = latestData.find(i => i.fuel_type === fuelType);
+        const el = document.getElementById('nationwideUpdated');
+        if (cur) {
+          const runRaw = cur.run_timestamp || cur.created_at;
+          const runDate = parseTimestamp(runRaw);
+          el.textContent = `Bijgewerkt ${formatTime(runDate)}`;
+          el.title = runDate ? runDate.toISOString() : '';
+          el.style.display = 'block';
+        } else {
+          el.style.display = 'none';
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch avg-prices for update label', e);
+    }
   } catch (err) {
     console.error('Search error:', err);
     showError('nationwideResults', 'Kan geen stations ophalen. Controleer of de API bereikbaar is.');
@@ -198,12 +238,35 @@ function renderChart(data) {
     priceChart.destroy();
   }
 
-  const labels = data.map(item => {
+  // Groepeer data per dag en bereken gemiddelde
+  const dailyData = {};
+  
+  data.forEach(item => {
     const date = new Date(item.run_timestamp);
-    return date.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD formaat
+    
+    if (!dailyData[dateKey]) {
+      dailyData[dateKey] = {
+        prices: [],
+        date: date
+      };
+    }
+    dailyData[dateKey].prices.push(item.avg_price);
   });
 
-  const prices = data.map(item => item.avg_price);
+  // Bereken gemiddelde per dag en sorteer
+  const dailyAverages = Object.keys(dailyData)
+    .sort()
+    .map(dateKey => ({
+      date: dailyData[dateKey].date,
+      avgPrice: dailyData[dateKey].prices.reduce((a, b) => a + b, 0) / dailyData[dateKey].prices.length
+    }));
+
+  const labels = dailyAverages.map(item => 
+    item.date.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
+  );
+
+  const prices = dailyAverages.map(item => item.avgPrice);
 
   priceChart = new Chart(ctx, {
     type: 'line',
@@ -373,13 +436,36 @@ function showError(targetElementId, message) {
 }
 
 // ===== DATUM FORMATTEREN =====
-function formatDate(dateString) {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('nl-NL', { 
-    day: 'numeric', 
+// Parse timestamp coming from the API into a JS Date.
+// The backend may return an ISO string without timezone (naive UTC).
+// If no timezone is present we treat it as UTC by appending a 'Z'.
+function parseTimestamp(ts) {
+  if (!ts) return null;
+  if (ts instanceof Date) return ts;
+  // If string already contains a timezone Z or +HH:MM/-HH:MM, let Date parse it.
+  if (/[zZ]$|[+\-]\d{2}:?\d{2}$/.test(ts)) {
+    return new Date(ts);
+  }
+  // Otherwise assume UTC (append Z)
+  return new Date(ts + 'Z');
+}
+
+function formatDate(dateInput) {
+  const date = parseTimestamp(dateInput);
+  if (!date || isNaN(date.getTime())) return 'Onbekende tijd';
+  // Return a locale-formatted string (NL) with date and time.
+  return date.toLocaleDateString('nl-NL', {
+    day: 'numeric',
     month: 'long',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit'
   });
+}
+
+// Format only time (HH:MM) for the small 'Bijgewerkt' label
+function formatTime(dateInput) {
+  const date = parseTimestamp(dateInput);
+  if (!date || isNaN(date.getTime())) return 'Onbekend';
+  return date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }

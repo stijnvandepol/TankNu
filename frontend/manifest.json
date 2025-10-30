@@ -1,0 +1,15 @@
+{
+  "name": "TankNu",
+  "short_name": "TankNu",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e40af",
+  "icons": [
+    {
+      "src": "assets/icon.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    }
+  ]
+}

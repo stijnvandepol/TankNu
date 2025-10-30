@@ -5,20 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
   <meta name="description" content="Vind direct de goedkoopste brandstofprijzen bij jou in de buurt in heel Nederland. Euro 95, Euro 98, Diesel en LPG."/>
   <title>TankNu - Goedkoopste Tankstations</title>
-  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1e40af">
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <div class="logo">
-        <img class="logo-icon" src="favicon.svg" alt="TankNu logo" />
-        <div class="logo-text">
-          <span class="logo-tank">Tank</span><span class="logo-nu">Nu</span>
+      <div class="header-top">
+        <div class="logo">
+          <img class="logo-icon" src="assets/favicon.svg" alt="TankNu logo" />
+          <div class="logo-text">
+            <span class="logo-tank">Tank</span><span class="logo-nu">Nu</span>
+          </div>
         </div>
-        </div>
-        <div class="logo-tagline tagline">Altijd op zoek naar de goedkoopste tankstations</div>
+        <button class="help-button" id="helpOpenBtn" aria-label="Uitleg en instructies">
+          ?
+        </button>
       </div>
+      <div class="logo-tagline tagline">
+        Altijd op zoek naar de goedkoopste tankstations
+      </div>
+    </div>
 
     <div class="tabs">
       <button class="tab active" data-tab="nearby">
@@ -140,6 +149,56 @@
       </div>
 
       <div id="dataResults"></div>
+    </div>
+  </div>
+
+  <div class="help-overlay" id="helpOverlay" aria-hidden="true">
+    <div class="help-panel">
+      <button class="help-close" id="helpCloseBtn" aria-label="Sluiten">
+        ✕
+      </button>
+
+      <div class="help-content">
+        <h2 class="help-title">Wat is TankNu.nl?</h2>
+        <p class="help-text">
+          TankNu.nl laat je direct zien waar je het goedkoopst kunt tanken. 
+          In de buurt of landelijk. Je kiest je brandstof, 
+          geeft een straal of een maximum aantal resultaten op en krijgt dan een lijst met tankstations inclusief prijs per liter, afstand en meteen een routeknop om er naartoe te navigeren.
+        </p>
+
+        <h3 class="help-section">Hoe gebruik ik het?</h3>
+        <ul class="help-list">
+          <li><strong>Bij mij</strong>: zoekt de goedkoopste stations in jouw buurt (op basis van je locatie of handmatig ingevoerde plaats).</li>
+          <li><strong>Landelijk</strong>: toont de absolute goedkoopste tankstations in NL, voor het geselecteerde type brandstof.</li>
+          <li><strong>Prijsdata</strong>: laat de gemiddelde landelijke prijs zien en een grafiek van de prijsontwikkeling van de afgelopen 30 dagen.</li>
+        </ul>
+
+        <h3 class="help-section">App op je beginscherm zetten</h3>
+        <div class="install-instructions">
+          <p><strong>iPhone / iOS (Safari):</strong></p>
+          <ol>
+            <li>Open deze site in Safari.</li>
+            <li>Tik op het deel-icoon (vierkantje met pijltje omhoog).</li>
+            <li>Kies <em>Zet op beginscherm</em>.</li>
+            <li>Bevestig. Je hebt nu een eigen TankNu icoon zoals een app 📱.</li>
+          </ol>
+
+          <p><strong>Android (Chrome):</strong></p>
+          <ol>
+            <li>Open deze site in Chrome.</li>
+            <li>Tik op de ⋮ (menu rechtsboven).</li>
+            <li>Kies <em>App installeren</em> of <em>Toevoegen aan startscherm</em>.</li>
+            <li>Bevestig. Vervolgens vind je TankNu gewoon tussen je apps.</li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="help-footer">
+        Gemaakt door
+        <a class="help-credit" href="https://stijnvandepol.nl" target="_blank" rel="noopener">
+          Stijn van de Pol
+        </a>
+      </footer>
     </div>
   </div>
 

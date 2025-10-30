@@ -544,17 +544,14 @@ function selectManualLocation({ lat, lon, display }) {
   const statusEl = document.getElementById('locationStatus');
   statusEl.className = 'location-status';
   statusEl.innerHTML = `<span class="icon">📍</span><span>${display}</span>`;
-  // hide suggestions
+
   const list = document.getElementById('locationSuggestions');
   if (list) { list.innerHTML = ''; list.style.display = 'none'; }
-  // fill input value
   const input = document.getElementById('manualLocationInput');
   if (input) input.value = display;
 
-  // optionally trigger a nearby search if on the nearby tab
   const activeTab = document.querySelector('.tab.active');
   if (activeTab && activeTab.dataset.tab === 'nearby') {
-    // run search automatically
     searchNearbyStations();
   }
 }
@@ -565,5 +562,38 @@ function escapeHtml(str) {
   });
 }
 
-// Note: this uses Nominatim (OpenStreetMap) for suggestions which is fine for light use and testing.
-// For production consider using a geocoding service with an API key (Mapbox, Here, Google) or proxy requests via your backend to avoid rate limits and identify your app.
+// === HELP OVERLAY TOGGLE ===
+(function initHelpOverlay() {
+  const openBtn = document.getElementById('helpOpenBtn');
+  const closeBtn = document.getElementById('helpCloseBtn');
+  const overlay = document.getElementById('helpOverlay');
+
+  if (!openBtn || !closeBtn || !overlay) return;
+
+  function openHelp() {
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeHelp() {
+    overlay.classList.remove('active');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  openBtn.addEventListener('click', openHelp);
+  closeBtn.addEventListener('click', closeHelp);
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      closeHelp();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeHelp();
+    }
+  });
+})();

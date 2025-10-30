@@ -2,26 +2,51 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Goedkoopste Tankstation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <meta name="description" content="Vind direct de goedkoopste brandstofprijzen bij jou in de buurt in heel Nederland. Euro 95, Euro 98, Diesel en LPG."/>
+  <title>TankNu - Goedkoopste Tankstations</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="assets/css/style.css" />
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>⛽ Goedkoopste Tankstation</h1>
-      <p>Vind de beste prijzen bij jou in de buurt</p>
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <rect x="18" y="28" width="12" height="16" rx="1" fill="currentColor"/>
+          <rect x="20" y="30" width="8" height="6" rx="0.5" fill="#fff" opacity="0.3"/>
+          <path d="M30 20 Q35 22 38 28" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <path d="M38 28 L42 30 L42 34 L38 32 Z" fill="currentColor"/>
+          <rect x="16" y="24" width="16" height="4" rx="1" fill="currentColor"/>
+          <rect x="14" y="20" width="20" height="4" rx="2" fill="currentColor"/>
+          <circle cx="42" cy="32" r="1.5" fill="#fff" opacity="0.4"/>
+        </svg>
+        <div class="logo-text">
+          <span class="logo-tank">Tank</span><span class="logo-nu">Nu</span>
+        </div>
+      </div>
+      <p class="tagline">Vind direct de goedkoopste brandstofprijzen</p>
     </div>
 
     <div class="tabs">
-      <button class="tab active" data-tab="nearby">📍 Bij mij</button>
-      <button class="tab" data-tab="nationwide">🏆 Landelijk</button>
+      <button class="tab active" data-tab="nearby">
+        <span class="tab-icon">📍</span>
+        <span class="tab-label">Bij mij</span>
+      </button>
+      <button class="tab" data-tab="nationwide">
+        <span class="tab-icon">🏆</span>
+        <span class="tab-label">Landelijk</span>
+      </button>
+      <button class="tab" data-tab="data">
+        <span class="tab-icon">📊</span>
+        <span class="tab-label">Prijsdata</span>
+      </button>
     </div>
 
     <div id="nearby-tab" class="tab-content active">
       <div class="card">
         <div class="form-group">
-          <label>📍 Jouw locatie</label>
+          <label>Jouw locatie</label>
           <div class="location-status" id="locationStatus">
             <span class="icon">⏳</span>
             <span>Locatie ophalen...</span>
@@ -29,7 +54,7 @@
         </div>
 
         <div class="form-group">
-          <label for="fuelType">⛽ Brandstoftype</label>
+          <label for="fuelType">Brandstoftype</label>
           <select id="fuelType">
             <option value="EURO95">Euro 95 (E10)</option>
             <option value="EURO98">Euro 98 (E5)</option>
@@ -40,13 +65,13 @@
 
         <div class="form-group">
           <label for="radius">
-            📏 Zoekradius
+            Zoekradius
             <span class="slider-value" id="radiusValue">10 km</span>
           </label>
           <input type="range" id="radius" min="5" max="50" value="10" step="5">
         </div>
 
-        <button class="btn" id="searchBtn">
+        <button class="btn btn-primary" id="searchBtn">
           Zoek goedkoopste stations
         </button>
       </div>
@@ -56,12 +81,12 @@
 
     <div id="nationwide-tab" class="tab-content">
       <div class="info-box">
-        💡 <strong>Top landelijk:</strong> Dit zijn de absolute goedkoopste tankstations in heel Nederland, ongeacht locatie.
+        <strong>Top landelijk:</strong> De absolute goedkoopste tankstations in heel Nederland.
       </div>
 
       <div class="card">
         <div class="form-group">
-          <label for="nationwideFuelType">⛽ Brandstoftype</label>
+          <label for="nationwideFuelType">Brandstoftype</label>
           <select id="nationwideFuelType">
             <option value="EURO95">Euro 95 (E10)</option>
             <option value="EURO98">Euro 98 (E5)</option>
@@ -72,21 +97,55 @@
 
         <div class="form-group">
           <label for="limitSlider">
-            📊 Aantal resultaten
+            Aantal resultaten
             <span class="slider-value" id="limitValue">20</span>
           </label>
           <input type="range" id="limitSlider" min="10" max="50" value="20" step="5">
         </div>
 
-        <button class="btn" id="nationwideBtn">
+        <button class="btn btn-primary" id="nationwideBtn">
           Toon goedkoopste landelijk
         </button>
       </div>
 
       <div id="nationwideResults"></div>
     </div>
+
+    <div id="data-tab" class="tab-content">
+      <div class="card">
+        <div class="form-group">
+          <label for="dataFuelType">Brandstoftype</label>
+          <select id="dataFuelType">
+            <option value="EURO95">Euro 95 (E10)</option>
+            <option value="EURO98">Euro 98 (E5)</option>
+            <option value="DIESEL">Diesel (B7)</option>
+            <option value="AUTOGAS">Autogas (LPG)</option>
+          </select>
+        </div>
+
+        <button class="btn btn-primary" id="loadDataBtn">
+          Laad prijshistorie
+        </button>
+      </div>
+
+      <div id="currentPriceCard" class="card" style="display: none;">
+        <h3 class="card-title">Huidige gemiddelde prijs</h3>
+        <div class="current-price-display">
+          <div class="price-large" id="currentAvgPrice">-</div>
+          <div class="price-meta" id="currentPriceMeta">-</div>
+        </div>
+      </div>
+
+      <div id="chartCard" class="card" style="display: none;">
+        <h3 class="card-title">Prijsontwikkeling (laatste 30 dagen)</h3>
+        <canvas id="priceChart"></canvas>
+      </div>
+
+      <div id="dataResults"></div>
+    </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="assets/js/app.js" defer></script>
 </body>
 </html>

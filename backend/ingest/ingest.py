@@ -22,11 +22,13 @@ from .tiler import generate_tiles
 from .utils import RateLimiter
 
 
+# logging setup
 logging.basicConfig(
     level=getattr(logging, Config.LOG_LEVEL.upper(), logging.INFO),
     format="%(asctime)s %(levelname)s %(message)s",
 )
 
+# db setup
 engine = create_engine(
     Config.db_uri(),
     pool_pre_ping=True,
@@ -70,9 +72,7 @@ def _upsert_station(session, payload: dict) -> None:
     session.merge(station)
 
 
-def _insert_prices(session, station_id: str, prices: Iterable[dict]) -> None:
-    now = datetime.utcnow()
-
+def _insert_prices(session, station_id: str, prices: Iterable[dict], run_ts: datetime) -> None:
     for p in prices or []:
         rec = FuelStationPrice(
             station_id=station_id,
@@ -82,9 +82,8 @@ def _insert_prices(session, station_id: str, prices: Iterable[dict]) -> None:
             currency=p.get("currency"),
             price_tier_value=(p.get("priceTier") or {}).get("value"),
             price_tier_max=(p.get("priceTier") or {}).get("max"),
-            collected_at=now,
+            collected_at=run_ts,
         )
-
         try:
             session.add(rec)
             session.flush()
@@ -121,7 +120,6 @@ def _ensure_tiles_exist() -> None:
 
 
 def _collect_station_ids(client: EndpointClient) -> list[str]:
-    """scan alle tiles en verzamel unieke stations"""
     ids: set[str] = set()
 
     with SessionLocal() as session:
@@ -160,7 +158,7 @@ def _collect_station_ids(client: EndpointClient) -> list[str]:
     return sorted(ids)
 
 
-def _store_station_batch(client: EndpointClient, station_ids: list[str]) -> None:
+def _store_station_batch(client: EndpointClient, station_ids: list[str], run_ts: datetime) -> None:
     processed = 0
     with SessionLocal() as session:
         for sid in station_ids:
@@ -172,7 +170,7 @@ def _store_station_batch(client: EndpointClient, station_ids: list[str]) -> None
                 continue
 
             _upsert_station(session, details)
-            _insert_prices(session, sid, details.get("prices") or [])
+            _insert_prices(session, sid, details.get("prices") or [], run_ts)
             processed += 1
 
             if processed % 100 == 0:
@@ -250,12 +248,12 @@ def run_ingest_once() -> None:
     rate = RateLimiter(per_second=Config.REQUESTS_PER_SECOND)
     client = EndpointClient(rate_limiter=rate)
 
+    run_ts = datetime.utcnow()
+
     station_ids = _collect_station_ids(client)
-
-    _store_station_batch(client, station_ids)
-
+    _store_station_batch(client, station_ids, run_ts)
     _store_avg_prices()
-    _cleanup_old_prices()
+    _cleanup_old_prices(run_ts)
 
 
 def _sleep_interval(total_seconds: float) -> None:
@@ -265,6 +263,13 @@ def _sleep_interval(total_seconds: float) -> None:
         t = min(chunk, remaining)
         time.sleep(t)
         remaining -= t
+
+
+def _next_run_at_half_past(now: datetime) -> datetime:
+    target = now.replace(minute=30, second=0, microsecond=0)
+    if now >= target:
+        target = target + timedelta(hours=1)
+    return target
 
 
 def main() -> None:
@@ -283,9 +288,15 @@ def main() -> None:
             logging.error(f"Ingest fout: {e}")
 
     while not _shutdown:
-        wait_minutes = max(1, Config.INGEST_INTERVAL_MINUTES)
-        logging.info(f"Wachten {wait_minutes}m tot volgende run.")
-        _sleep_interval(wait_minutes * 60)
+        now = datetime.utcnow()
+        next_run = _next_run_at_half_past(now)
+
+        wait_seconds = (next_run - now).total_seconds()
+        logging.info(
+            f"Volgende run om {next_run.isoformat()}Z (in {wait_seconds/60:.1f} min)."
+        )
+
+        _sleep_interval(wait_seconds)
 
         if _shutdown:
             break

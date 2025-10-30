@@ -1,7 +1,8 @@
 const API_BASE = '/api';
 let userLocation = null;
+let priceChart = null;
 
-// Tabs
+// ===== TAB SWITCHING =====
 function switchTab(tabName) {
   document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
   document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
@@ -17,7 +18,7 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Sliders live-waarde
+// ===== SLIDERS =====
 document.addEventListener('input', (e) => {
   if (e.target.id === 'radius') {
     document.getElementById('radiusValue').textContent = `${e.target.value} km`;
@@ -27,7 +28,7 @@ document.addEventListener('input', (e) => {
   }
 });
 
-// Geolocatie ophalen
+// ===== GEOLOCATIE =====
 window.addEventListener('load', () => {
   const statusEl = document.getElementById('locationStatus');
 
@@ -57,17 +58,20 @@ window.addEventListener('load', () => {
   );
 });
 
-// Event listeners voor knoppen
+// ===== EVENT LISTENERS =====
 document.addEventListener('click', async (e) => {
-  if (e.target.id === 'searchBtn') {
+  if (e.target.id === 'searchBtn' || e.target.closest('#searchBtn')) {
     await searchNearbyStations();
   }
-  if (e.target.id === 'nationwideBtn') {
+  if (e.target.id === 'nationwideBtn' || e.target.closest('#nationwideBtn')) {
     await searchNationwideStations();
+  }
+  if (e.target.id === 'loadDataBtn' || e.target.closest('#loadDataBtn')) {
+    await loadPriceData();
   }
 });
 
-// Zoeken – dichtbij
+// ===== ZOEKEN DICHTBIJ =====
 async function searchNearbyStations() {
   if (!userLocation) {
     showError('nearbyResults', 'Geen locatie beschikbaar. Geef toegang tot je locatie.');
@@ -91,14 +95,14 @@ async function searchNearbyStations() {
     displayResults(stations, fuelType, 'nearbyResults', true);
   } catch (err) {
     console.error('Search error:', err);
-    showError('nearbyResults', 'Er ging iets mis bij het ophalen van de stations. Check of de API via /api bereikbaar is.');
+    showError('nearbyResults', 'Kan geen stations ophalen. Controleer of de API bereikbaar is.');
   } finally {
     searchBtn.disabled = false;
     searchBtn.textContent = 'Zoek goedkoopste stations';
   }
 }
 
-// Zoeken – landelijk
+// ===== ZOEKEN LANDELIJK =====
 async function searchNationwideStations() {
   const fuelType = document.getElementById('nationwideFuelType').value;
   const limit = document.getElementById('limitSlider').value;
@@ -117,14 +121,163 @@ async function searchNationwideStations() {
     displayResults(stations, fuelType, 'nationwideResults', false);
   } catch (err) {
     console.error('Search error:', err);
-    showError('nationwideResults', 'Er ging iets mis bij het ophalen van de stations. Check of de API via /api bereikbaar is.');
+    showError('nationwideResults', 'Kan geen stations ophalen. Controleer of de API bereikbaar is.');
   } finally {
     searchBtn.disabled = false;
     searchBtn.textContent = 'Toon goedkoopste landelijk';
   }
 }
 
-// Google Maps route URL
+// ===== PRIJSDATA LADEN =====
+async function loadPriceData() {
+  const fuelType = document.getElementById('dataFuelType').value;
+  const loadBtn = document.getElementById('loadDataBtn');
+  const resultsEl = document.getElementById('dataResults');
+  const currentPriceCard = document.getElementById('currentPriceCard');
+  const chartCard = document.getElementById('chartCard');
+
+  loadBtn.disabled = true;
+  loadBtn.textContent = 'Laden...';
+  resultsEl.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p style="margin-top: 16px;">Prijsdata ophalen...</p></div>';
+
+  try {
+    // Haal huidige gemiddelde op
+    const latestRes = await fetch(`${API_BASE}/avg-prices/latest`);
+    if (!latestRes.ok) throw new Error(`API error: ${latestRes.status}`);
+    const latestData = await latestRes.json();
+    const currentFuel = latestData.find(item => item.fuel_type === fuelType);
+
+    if (currentFuel) {
+      document.getElementById('currentAvgPrice').textContent = `€ ${currentFuel.avg_price.toFixed(3)}`;
+      document.getElementById('currentPriceMeta').textContent = 
+        `Gebaseerd op ${currentFuel.sample_count} tankstations · ${formatDate(currentFuel.run_timestamp)}`;
+      currentPriceCard.style.display = 'block';
+    }
+
+    // Haal historische data op
+    const historyRes = await fetch(`${API_BASE}/avg-prices/history?fuel_type=${fuelType}`);
+    if (!historyRes.ok) throw new Error(`API error: ${historyRes.status}`);
+    const historyData = await historyRes.json();
+
+    if (historyData && historyData.length > 0) {
+      // Filter laatste 30 dagen
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const recentData = historyData
+        .filter(item => new Date(item.run_timestamp) >= thirtyDaysAgo)
+        .sort((a, b) => new Date(a.run_timestamp) - new Date(b.run_timestamp));
+
+      if (recentData.length > 0) {
+        renderChart(recentData);
+        chartCard.style.display = 'block';
+        resultsEl.innerHTML = '';
+      } else {
+        resultsEl.innerHTML = '<div class="no-results"><div class="no-results-icon">📊</div><h3>Geen recente data</h3><p style="margin-top: 8px;">Er zijn nog geen gegevens van de laatste 30 dagen</p></div>';
+      }
+    } else {
+      resultsEl.innerHTML = '<div class="no-results"><div class="no-results-icon">📊</div><h3>Geen data beschikbaar</h3><p style="margin-top: 8px;">Probeer het later opnieuw</p></div>';
+    }
+
+  } catch (err) {
+    console.error('Data error:', err);
+    showError('dataResults', 'Kan prijsdata niet ophalen. Controleer of de API bereikbaar is.');
+    currentPriceCard.style.display = 'none';
+    chartCard.style.display = 'none';
+  } finally {
+    loadBtn.disabled = false;
+    loadBtn.textContent = 'Laad prijshistorie';
+  }
+}
+
+// ===== CHART RENDEREN =====
+function renderChart(data) {
+  const ctx = document.getElementById('priceChart');
+  
+  if (priceChart) {
+    priceChart.destroy();
+  }
+
+  const labels = data.map(item => {
+    const date = new Date(item.run_timestamp);
+    return date.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+  });
+
+  const prices = data.map(item => item.avg_price);
+
+  priceChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Gemiddelde prijs (€/L)',
+        data: prices,
+        borderColor: '#1e40af',
+        backgroundColor: 'rgba(30, 64, 175, 0.1)',
+        borderWidth: 2,
+        tension: 0.3,
+        fill: true,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        pointBackgroundColor: '#1e40af',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(31, 41, 55, 0.95)',
+          padding: 12,
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          cornerRadius: 8,
+          displayColors: false,
+          callbacks: {
+            label: function(context) {
+              return `€ ${context.parsed.y.toFixed(3)} per liter`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: false,
+          ticks: {
+            callback: function(value) {
+              return '€ ' + value.toFixed(3);
+            },
+            font: {
+              size: 11
+            }
+          },
+          grid: {
+            color: 'rgba(0, 0, 0, 0.05)'
+          }
+        },
+        x: {
+          ticks: {
+            font: {
+              size: 11
+            },
+            maxRotation: 45,
+            minRotation: 45
+          },
+          grid: {
+            display: false
+          }
+        }
+      }
+    }
+  });
+}
+
+// ===== GOOGLE MAPS ROUTE URL =====
 function buildDirectionsUrl(origin, destination) {
   if (!destination) return null;
 
@@ -143,6 +296,7 @@ function buildDirectionsUrl(origin, destination) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destStr)}&travelmode=driving`;
 }
 
+// ===== RESULTATEN TONEN =====
 function displayResults(stations, fuelType, targetElementId, showDistance) {
   const resultsEl = document.getElementById(targetElementId);
 
@@ -212,7 +366,20 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
   resultsEl.innerHTML = html;
 }
 
+// ===== ERROR TONEN =====
 function showError(targetElementId, message) {
   const resultsEl = document.getElementById(targetElementId);
   resultsEl.innerHTML = `<div class="error-message">${message}</div>`;
+}
+
+// ===== DATUM FORMATTEREN =====
+function formatDate(dateString) {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('nl-NL', { 
+    day: 'numeric', 
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }

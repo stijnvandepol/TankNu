@@ -153,29 +153,25 @@ def ingest_cycle():
         session.commit()
         logging.info(f"Gemiddelde prijzen opgeslagen ({len(rows)} brandstoftypes).")
 
-        # Opruimen van oude raw prijs-records om tabel-groei te beperken.
+        # Opruimen van raw prijs-records: bewaar alleen de data van de
+        # zojuist afgeronde run (run_timestamp == now). Verwijder alle oudere
+        # prijsrecords zodat de tabel niet onnodig groeit. De averages per
+        # run blijven bewaard in `avg_fuel_prices`.
         try:
-            retention_days = Config.PRICE_RETENTION_DAYS
-            threshold = datetime.utcnow() - timedelta(days=retention_days)
-            logging.info(f"Opruimen raw prices ouder dan {retention_days} dagen (vóór {threshold.isoformat()})...")
+            run_ts = now
+            logging.info(f"Verwijder raw prijsrecords ouder dan run_timestamp {run_ts.isoformat()} (houd alleen huidige run).")
 
             cleanup_sql = text(
                 """
-                DELETE FROM fuel_station_prices p
-                WHERE p.collected_at < :threshold
-                  AND p.id NOT IN (
-                    SELECT max_id FROM (
-                      SELECT MAX(id) AS max_id
-                      FROM fuel_station_prices
-                      GROUP BY station_id, fuel_type
-                    ) s
-                  )
+                DELETE FROM fuel_station_prices
+                WHERE collected_at < :run_ts
                 """
             )
 
-            session.execute(cleanup_sql, {"threshold": threshold})
+            # Verwijder in één transactie
+            session.execute(cleanup_sql, {"run_ts": run_ts})
             session.commit()
-            logging.info("Opruiming raw prices voltooid.")
+            logging.info("Opruiming van oudere raw prices voltooid; alleen huidige run behouden.")
         except Exception as e:
             logging.error(f"Fout tijdens opruimen van oude prijzen: {e}")
 

@@ -1,5 +1,5 @@
 # 🛢️ TankNu
-<img alt="deviceframes" src="https://github.com/user-attachments/assets/9e30c88b-5bcd-49ad-ab81-6eb22ec034d6" width="300" align="right" />
+<img alt="deviceframes" src="https://github.com/user-attachments/assets/9e30c88b-5bcd-49ad-ab81-6eb22ec034d6" width="280" align="right" />
 Volledige applicatie om brandstofprijzen in Nederland te verzamelen, opslaan en beschikbaar maken. Alles gedockeriseerd. De data komt van de publieke ANWB API, wordt netjes in PostgreSQL gezet, en je krijgt er een FastAPI backend en moderne frontend bij.
 
 Het idee is simpel: vier containers (ingest, API, frontend, database) die samen zorgen dat je altijd weet waar je het goedkoopst tankt. Inclusief automatische berekening van gemiddelde prijzen per brandstoftype.

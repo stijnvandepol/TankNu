@@ -6,12 +6,12 @@ class Config:
     Alle instellingen kunnen hier direct worden aangepast.
     """
 
-    # Database instellingen
-    MYSQL_HOST = os.getenv("MYSQL_HOST")
-    MYSQL_PORT = int(os.getenv("MYSQL_PORT"))
-    MYSQL_DATABASE = os.getenv("MYSQL_DATABASE")
-    MYSQL_USER = os.getenv("MYSQL_USER")
-    MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
+    # Database instellingen (Postgres)
+    POSTGRES_HOST = os.getenv("POSTGRES_HOST", "127.0.0.1")
+    POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5432"))
+    POSTGRES_DATABASE = os.getenv("POSTGRES_DB")
+    POSTGRES_USER = os.getenv("POSTGRES_USER")
+    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
 
     # Nederlandse bounding box
     NL_SW_LAT = 50.750384
@@ -27,10 +27,19 @@ class Config:
     REQUESTS_PER_SECOND = 20     # snelheid van API-verzoeken (Default 20, duurt ongeveer 5 minuten)
     LOG_LEVEL = "INFO"            # of DEBUG, WARNING, ERROR
     COUNTRY_FILTER = "NLD"        # gebruik None om alle landen toe te staan
+    # Ingest interval (in minuten). Standaard elk uur.
+    INGEST_INTERVAL_MINUTES = int(os.getenv("INGEST_INTERVAL_MINUTES", "60"))
+
+    # Retentie voor raw price records (dagen). Alle prijsrecords ouder dan deze
+    # waarde worden opgeruimd, behalve de laatste prijs per station+fuel_type.
+    PRICE_RETENTION_DAYS = int(os.getenv("PRICE_RETENTION_DAYS", "7"))
 
     @staticmethod
     def db_uri() -> str:
-        return (
-            f"mysql+pymysql://{Config.MYSQL_USER}:{Config.MYSQL_PASSWORD}"
-            f"@{Config.MYSQL_HOST}:{Config.MYSQL_PORT}/{Config.MYSQL_DATABASE}"
-        )
+    # SQLAlchemy connection string for PostgreSQL using psycopg2
+        user = Config.POSTGRES_USER or ""
+        pwd = Config.POSTGRES_PASSWORD or ""
+        host = Config.POSTGRES_HOST or "127.0.0.1"
+        port = Config.POSTGRES_PORT or 5432
+        db = Config.POSTGRES_DATABASE or ""
+        return f"postgresql+psycopg2://{user}:{pwd}@{host}:{port}/{db}"

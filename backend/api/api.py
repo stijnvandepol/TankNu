@@ -72,8 +72,8 @@ LATEST_PRICE_SQL = text(
       WHERE value_eur_per_l IS NOT NULL AND value_eur_per_l > 0
       GROUP BY station_id, fuel_type
     ) last 
-      ON last.station_id = p.station_id
-     AND (last.fuel_type <=> p.fuel_type)
+    ON last.station_id = p.station_id
+     AND (last.fuel_type IS NOT DISTINCT FROM p.fuel_type)
      AND last.max_ts = p.collected_at
     WHERE p.station_id = :sid
       AND p.value_eur_per_l IS NOT NULL AND p.value_eur_per_l > 0
@@ -119,18 +119,20 @@ def stations_nearby(
         # Haversine in MySQL (kilometers)
         dist_sql = text(
             """
-            SELECT 
-              fs.*, 
-              (6371 * ACOS(
-                LEAST(1, COS(RADIANS(:lat))*COS(RADIANS(fs.latitude))*COS(RADIANS(fs.longitude)-RADIANS(:lon))
-                     + SIN(RADIANS(:lat))*SIN(RADIANS(fs.latitude))
-                )
-              )) AS distance_km
-            FROM fuel_stations fs
-            WHERE fs.latitude IS NOT NULL AND fs.longitude IS NOT NULL
-            HAVING distance_km <= :radius
-            ORDER BY distance_km ASC
-            LIMIT :limit
+                        SELECT * FROM (
+                            SELECT 
+                                fs.*, 
+                                (6371 * ACOS(
+                                    LEAST(1, COS(RADIANS(:lat))*COS(RADIANS(fs.latitude))*COS(RADIANS(fs.longitude)-RADIANS(:lon))
+                                             + SIN(RADIANS(:lat))*SIN(RADIANS(fs.latitude))
+                                    )
+                                )) AS distance_km
+                            FROM fuel_stations fs
+                            WHERE fs.latitude IS NOT NULL AND fs.longitude IS NOT NULL
+                        ) sub
+                        WHERE distance_km <= :radius
+                        ORDER BY distance_km ASC
+                        LIMIT :limit
             """
         )
         rows = s.execute(dist_sql, {"lat": lat, "lon": lon, "radius": radius_km, "limit": limit}).mappings().all()
@@ -187,17 +189,19 @@ def stations_cheapest(
         sql = text(
             """
             WITH nearest AS (
-              SELECT 
-                fs.id, fs.title, fs.type, fs.latitude, fs.longitude,
-                fs.street_address, fs.postal_code, fs.city, fs.country, fs.iso3_country_code,
-                (6371 * ACOS(
-                  LEAST(1, COS(RADIANS(:lat))*COS(RADIANS(fs.latitude))*COS(RADIANS(fs.longitude)-RADIANS(:lon))
-                       + SIN(RADIANS(:lat))*SIN(RADIANS(fs.latitude))
-                  )
-                )) AS distance_km
-              FROM fuel_stations fs
-              WHERE fs.latitude IS NOT NULL AND fs.longitude IS NOT NULL
-              HAVING distance_km <= :radius
+                            SELECT * FROM (
+                                SELECT 
+                                    fs.id, fs.title, fs.type, fs.latitude, fs.longitude,
+                                    fs.street_address, fs.postal_code, fs.city, fs.country, fs.iso3_country_code,
+                                    (6371 * ACOS(
+                                        LEAST(1, COS(RADIANS(:lat))*COS(RADIANS(fs.latitude))*COS(RADIANS(fs.longitude)-RADIANS(:lon))
+                                                 + SIN(RADIANS(:lat))*SIN(RADIANS(fs.latitude))
+                                        )
+                                    )) AS distance_km
+                                FROM fuel_stations fs
+                                WHERE fs.latitude IS NOT NULL AND fs.longitude IS NOT NULL
+                            ) sub
+                            WHERE distance_km <= :radius
             ), latest AS (
               SELECT p.* FROM fuel_station_prices p
               JOIN (
@@ -309,33 +313,33 @@ def get_station(station_id: str):
         )
 
 
-    @app.get("/avg-prices/latest", response_model=List[AvgPriceOut])
-    def avg_prices_latest():
-        """Geef de meest recente gemiddelde prijs per brandstoftype terug."""
-        with get_session() as s:
-            sql = text(
-                """
-                SELECT ap.fuel_type, ap.avg_price, ap.sample_count, ap.run_timestamp, ap.created_at
-                FROM avg_fuel_prices ap
-                JOIN (
-                  SELECT fuel_type, MAX(run_timestamp) AS max_run
-                  FROM avg_fuel_prices
-                  GROUP BY fuel_type
-                ) last ON last.fuel_type <=> ap.fuel_type AND last.max_run = ap.run_timestamp
-                """
-            )
+@app.get("/avg-prices/latest", response_model=List[AvgPriceOut])
+def avg_prices_latest():
+    """Geef de meest recente gemiddelde prijs per brandstoftype terug."""
+    with get_session() as s:
+        sql = text(
+            """
+            SELECT ap.fuel_type, ap.avg_price, ap.sample_count, ap.run_timestamp, ap.created_at
+            FROM avg_fuel_prices ap
+            JOIN (
+              SELECT fuel_type, MAX(run_timestamp) AS max_run
+              FROM avg_fuel_prices
+              GROUP BY fuel_type
+            ) last ON last.fuel_type IS NOT DISTINCT FROM ap.fuel_type AND last.max_run = ap.run_timestamp
+            """
+        )
+        rows = s.execute(sql).mappings().all()
+        return [AvgPriceOut(**r) for r in rows]
+
+
+@app.get("/avg-prices/history", response_model=List[AvgPriceOut])
+def avg_prices_history(fuel_type: Optional[str] = Query(None, description="Filter op fuel_type (bv. EURO95, DIESEL)")):
+    """Geef historiek van gemiddelde prijzen terug. Optioneel filter op fuel_type."""
+    with get_session() as s:
+        if fuel_type:
+            sql = text("SELECT fuel_type, avg_price, sample_count, run_timestamp, created_at FROM avg_fuel_prices WHERE fuel_type = :ft ORDER BY run_timestamp DESC")
+            rows = s.execute(sql, {"ft": fuel_type}).mappings().all()
+        else:
+            sql = text("SELECT fuel_type, avg_price, sample_count, run_timestamp, created_at FROM avg_fuel_prices ORDER BY run_timestamp DESC")
             rows = s.execute(sql).mappings().all()
-            return [AvgPriceOut(**r) for r in rows]
-
-
-    @app.get("/avg-prices/history", response_model=List[AvgPriceOut])
-    def avg_prices_history(fuel_type: Optional[str] = Query(None, description="Filter op fuel_type (bv. EURO95, DIESEL)")):
-        """Geef historiek van gemiddelde prijzen terug. Optioneel filter op fuel_type."""
-        with get_session() as s:
-            if fuel_type:
-                sql = text("SELECT fuel_type, avg_price, sample_count, run_timestamp, created_at FROM avg_fuel_prices WHERE fuel_type = :ft ORDER BY run_timestamp DESC")
-                rows = s.execute(sql, {"ft": fuel_type}).mappings().all()
-            else:
-                sql = text("SELECT fuel_type, avg_price, sample_count, run_timestamp, created_at FROM avg_fuel_prices ORDER BY run_timestamp DESC")
-                rows = s.execute(sql).mappings().all()
-            return [AvgPriceOut(**r) for r in rows]
+        return [AvgPriceOut(**r) for r in rows]

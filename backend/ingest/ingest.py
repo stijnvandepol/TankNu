@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 import time
 import signal
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
@@ -132,7 +132,7 @@ def ingest_cycle():
                 FROM fuel_station_prices
                 WHERE value_eur_per_l IS NOT NULL AND value_eur_per_l > 0
                 GROUP BY station_id, fuel_type
-              ) lastp ON lastp.station_id = p.station_id AND (lastp.fuel_type <=> p.fuel_type) AND lastp.max_ts = p.collected_at
+              ) lastp ON lastp.station_id = p.station_id AND (lastp.fuel_type IS NOT DISTINCT FROM p.fuel_type) AND lastp.max_ts = p.collected_at
             )
             SELECT fuel_type, AVG(value_eur_per_l) AS avg_price, COUNT(*) AS cnt
             FROM last
@@ -153,23 +153,62 @@ def ingest_cycle():
         session.commit()
         logging.info(f"Gemiddelde prijzen opgeslagen ({len(rows)} brandstoftypes).")
 
+        # Opruimen van oude raw prijs-records om tabel-groei te beperken.
+        try:
+            retention_days = Config.PRICE_RETENTION_DAYS
+            threshold = datetime.utcnow() - timedelta(days=retention_days)
+            logging.info(f"Opruimen raw prices ouder dan {retention_days} dagen (vóór {threshold.isoformat()})...")
+
+            cleanup_sql = text(
+                """
+                DELETE FROM fuel_station_prices p
+                WHERE p.collected_at < :threshold
+                  AND p.id NOT IN (
+                    SELECT max_id FROM (
+                      SELECT MAX(id) AS max_id
+                      FROM fuel_station_prices
+                      GROUP BY station_id, fuel_type
+                    ) s
+                  )
+                """
+            )
+
+            session.execute(cleanup_sql, {"threshold": threshold})
+            session.commit()
+            logging.info("Opruiming raw prices voltooid.")
+        except Exception as e:
+            logging.error(f"Fout tijdens opruimen van oude prijzen: {e}")
+
     logging.info("Run voltooid!")
 
 def main():
-    logging.info("Start ingest-daemon (1 run per 10 minuten)")
-    interval = 10 * 60  # <-- 10 minuten tussen runs 
+    logging.info("Start ingest-scheduler: ingest wordt elke uur uitgevoerd op minuut :30 ")
     while not _shutdown:
+        now = datetime.utcnow()
+        next_run = now.replace(minute=30, second=0, microsecond=0)
+        if now >= next_run:
+            next_run = next_run + timedelta(hours=1)
+
+        wait_seconds = (next_run - now).total_seconds()
+        logging.info(f"Volgende ingest-run gepland op {next_run.isoformat()} UTC (in {wait_seconds/60:.1f} minuten)")
+
+        # Wacht tot volgende run, controleer periodiek op shutdown
+        while wait_seconds > 0 and not _shutdown:
+            to_sleep = min(1.0, wait_seconds)
+            time.sleep(to_sleep)
+            wait_seconds -= to_sleep
+
+        if _shutdown:
+            break
+
         start = time.time()
         try:
             ingest_cycle()
         except Exception as e:
             logging.error(f"Fout in ingest-cycle: {e}")
         duration = time.time() - start
-        logging.info(f"Cyclus duurde {duration/60:.1f} minuten. Wacht nu 10 minuten...")
-        for _ in range(int(interval)):
-            if _shutdown:
-                break
-            time.sleep(1)
+        logging.info(f"Cyclus duurde {duration/60:.1f} minuten.")
+
     logging.info("Netjes afgesloten.")
 
 if __name__ == "__main__":

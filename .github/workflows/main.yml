@@ -1,4 +1,4 @@
-name: Deploy clean
+name: Deploy Newest version
 
 on:
   workflow_dispatch:
@@ -12,13 +12,12 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted]
+
     env:
-      # Houd deze in sync met je compose projectnaam (of laat weg en gebruik dir-naam)
       COMPOSE_PROJECT_NAME: mijnapp
 
     steps:
-      # 0) Werkdirectory echt leegtrekken (ook op self-hosted)
       - name: Pre-clean workspace
         shell: bash
         run: |
@@ -28,15 +27,12 @@ jobs:
             rm -rf "$GITHUB_WORKSPACE"/* || true
           fi
 
-      # 1) Schone git clone
-      - name: Checkout (fresh)
+      - name: Checkout fresh
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          clean: true         # git clean -ffdx na checkout
-          # ref: main         # optioneel: pin expliciete branch/tag
+          clean: true
 
-      # 2) Detect compose CLI
       - name: Detect docker compose
         id: dccmd
         shell: bash
@@ -46,58 +42,69 @@ jobs:
           elif docker-compose version >/dev/null 2>&1; then
             echo "cmd=docker-compose" >> "$GITHUB_OUTPUT"
           else
-            echo "Geen docker compose gevonden"; exit 1
+            echo "Geen docker compose gevonden" >&2
+            exit 1
           fi
 
-      # 3) YAML check vóór we iets omduwen
       - name: Validate compose
         shell: bash
         run: |
           DC="${{ steps.dccmd.outputs.cmd }}"
           $DC config >/dev/null
 
-      # 4) HARD CLEAN: alles van dit project weg
-      - name: Down + remove images + volumes + orphans
+      - name: Nuke host docker state
+        shell: bash
+        run: |
+          set -e
+
+          echo ">>> Stop ALL containers (if any)"
+          if [ -n "$(docker ps -q)" ]; then
+            docker stop $(docker ps -q) || true
+          fi
+
+          echo ">>> Remove ALL containers (if any)"
+          if [ -n "$(docker ps -aq)" ]; then
+            docker rm -f $(docker ps -aq) || true
+          fi
+
+          echo ">>> Remove ALL volumes (if any)"
+          if [ -n "$(docker volume ls -q)" ]; then
+            docker volume rm $(docker volume ls -q) || true
+          fi
+
+          echo ">>> Prune networks/images that are dangling"
+          docker network prune -f || true
+          docker image prune -f || true
+          docker builder prune -f || true
+
+          # optioneel: volledig image wipe (incl. non-dangling) => uncomment als je écht ALLES wilt
+          # if [ -n "$(docker image ls -q)" ]; then
+          #   docker rmi -f $(docker image ls -q) || true
+          # fi
+
+      - name: Compose down safety (orphans etc)
         shell: bash
         run: |
           set -e
           DC="${{ steps.dccmd.outputs.cmd }}"
-          # Containers, netwerken, ALLE service images en ALLE volumes van deze stack
           $DC down --remove-orphans --rmi all --volumes || true
 
-          # Safety-pass op labels (mocht Compose iets laten liggen)
-          imgs=$(docker image ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")
-          if [ -n "$imgs" ]; then docker rmi -f $imgs || true; fi
-          nets=$(docker network ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")
-          if [ -n "$nets" ]; then docker network rm $nets || true; fi
-          vols=$(docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")
-          if [ -n "$vols" ]; then docker volume rm $vols || true; fi
-
-      # 5A) LOKALE BUILD: Dockerfile(s) in repo -> volledig vers bouwen
-      - name: Build fresh & up (local build)
-        if: ${{ always() }}
+      - name: Build fresh & up
         shell: bash
         run: |
           set -e
           DC="${{ steps.dccmd.outputs.cmd }}"
-          # Nieuwe base images + geen cache
+
+          echo ">>> Build images with --no-cache and pull latest bases"
           $DC build --pull --no-cache
-          # Start met nieuwe anonieme volumes en geen weescontainers
+
+          echo ">>> Bring stack up clean"
           $DC up -d --remove-orphans --renew-anon-volumes
 
-      # 5B) REGISTRY IMAGES (als je in compose 'image:' gebruikt, dan ipv 5A):
-      # - name: Pull fresh & up (registry images)
-      #   if: ${{ always() }}
-      #   shell: bash
-      #   run: |
-      #     set -e
-      #     DC="${{ steps.dccmd.outputs.cmd }}"
-      #     $DC pull --ignore-pull-failures
-      #     $DC up -d --remove-orphans --renew-anon-volumes
-
-      # 6) Status
       - name: Status
         shell: bash
         run: |
           DC="${{ steps.dccmd.outputs.cmd }}"
           $DC ps
+          docker ps
+          docker volume ls

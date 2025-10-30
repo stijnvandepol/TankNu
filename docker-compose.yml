@@ -28,7 +28,7 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    command: ["python", "-m", "src.ingest.ingest"]
+    command: ["python", "-m", "backend.ingest.ingest"]
     restart: on-failure
 
   api:
@@ -44,7 +44,7 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    command: ["uvicorn", "src.api.api:app", "--host", "0.0.0.0", "--port", "8080"]
+    command: ["uvicorn", "backend.api.api:app", "--host", "0.0.0.0", "--port", "8080"]
     restart: unless-stopped
 
   web:

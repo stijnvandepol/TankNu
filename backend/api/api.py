@@ -7,8 +7,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
-from src.config import Config
-from src.models import FuelStation
+from backend.config import Config
+from backend.models import FuelStation
 
 DB_URI = Config.db_uri()
 engine = create_engine(DB_URI, pool_pre_ping=True, future=True)

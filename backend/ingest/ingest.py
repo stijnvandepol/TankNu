@@ -7,8 +7,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
-from src.config import Config
-from src.models import Base, CoordinateTile, FuelStation, FuelStationPrice
+from backend.config import Config
+from backend.models import Base, CoordinateTile, FuelStation, FuelStationPrice
 from .endpoint_connector import EndpointClient
 from .tiler import generate_tiles
 from .utils import RateLimiter

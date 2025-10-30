@@ -11,8 +11,8 @@ default-libmysqlclient-dev \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src ./src
+COPY backend ./backend
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "-m", "src.ingest"]
+CMD ["python", "-m", "backend.ingest"]

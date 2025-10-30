@@ -2,7 +2,19 @@ from __future__ import annotations
 from typing import Iterator
 
 
-def generate_tiles(sw_lat: float, sw_lon: float, ne_lat: float, ne_lon: float, size_lat: float, size_lon: float) -> Iterator[tuple[float, float, float, float]]:
+def generate_tiles(
+    sw_lat: float,
+    sw_lon: float,
+    ne_lat: float,
+    ne_lon: float,
+    size_lat: float,
+    size_lon: float,
+) -> Iterator[tuple[float, float, float, float]]:
+    if sw_lat >= ne_lat or sw_lon >= ne_lon:
+        raise ValueError("Invalid bounds")
+    if size_lat <= 0 or size_lon <= 0:
+        raise ValueError("Tile size must be > 0")
+
     lat = sw_lat
     while lat < ne_lat:
         next_lat = min(lat + size_lat, ne_lat)

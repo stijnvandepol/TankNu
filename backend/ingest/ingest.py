@@ -1,40 +1,58 @@
 from __future__ import annotations
+
 import logging
 import time
 import signal
 from datetime import datetime, timedelta
-from sqlalchemy import create_engine
+from typing import Iterable
+
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
 
 from backend.config import Config
-from backend.models import Base, CoordinateTile, FuelStation, FuelStationPrice, AvgFuelPrice
+from backend.models import (
+    Base,
+    CoordinateTile,
+    FuelStation,
+    FuelStationPrice,
+    AvgFuelPrice,
+)
 from .endpoint_connector import EndpointClient
 from .tiler import generate_tiles
 from .utils import RateLimiter
 
-load_dotenv()
 
-# Basis logging
 logging.basicConfig(
     level=getattr(logging, Config.LOG_LEVEL.upper(), logging.INFO),
     format="%(asctime)s %(levelname)s %(message)s",
 )
-engine = create_engine(Config.db_uri(), pool_pre_ping=True, echo=False, future=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+engine = create_engine(
+    Config.db_uri(),
+    pool_pre_ping=True,
+    echo=False,
+    future=True,
+)
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    expire_on_commit=False,
+)
 
 _shutdown = False
 
-def handle_sigterm(*_):
+
+def _handle_sigterm(*_):
     global _shutdown
     _shutdown = True
-    logging.info("Stopverzoek ontvangen. Wacht tot einde huidige cyclus...")
-signal.signal(signal.SIGTERM, handle_sigterm)
+    logging.info("Stop aangevraagd; afronden en afsluiten.")
+signal.signal(signal.SIGTERM, _handle_sigterm)
 
 
-def upsert_station(session, payload: dict):
+def _upsert_station(session, payload: dict) -> None:
     s = payload
     station = session.get(FuelStation, s["id"]) or FuelStation(id=s["id"])
+
     station.title = s.get("title")
     station.type = s.get("type")
 
@@ -51,8 +69,10 @@ def upsert_station(session, payload: dict):
 
     session.merge(station)
 
-def insert_prices(session, station_id: str, prices: list[dict]):
+
+def _insert_prices(session, station_id: str, prices: Iterable[dict]) -> None:
     now = datetime.utcnow()
+
     for p in prices or []:
         rec = FuelStationPrice(
             station_id=station_id,
@@ -64,64 +84,110 @@ def insert_prices(session, station_id: str, prices: list[dict]):
             price_tier_max=(p.get("priceTier") or {}).get("max"),
             collected_at=now,
         )
-        session.add(rec)
 
-def ensure_tiles_exist():
+        try:
+            session.add(rec)
+            session.flush()
+        except Exception:
+            session.rollback()
+            logging.debug("Dubbele prijs, overgeslagen.")
+
+
+def _ensure_tiles_exist() -> None:
     with SessionLocal() as session:
-        if session.query(CoordinateTile).count() == 0:
-            for (sw_lat, sw_lon, ne_lat, ne_lon) in generate_tiles(
-                Config.NL_SW_LAT, Config.NL_SW_LON, Config.NL_NE_LAT, Config.NL_NE_LON,
-                Config.TILE_SIZE_LAT, Config.TILE_SIZE_LON,
-            ):
-                session.add(CoordinateTile(sw_lat=sw_lat, sw_lon=sw_lon, ne_lat=ne_lat, ne_lon=ne_lon))
-            session.commit()
-            logging.info("Tiles aangemaakt")
-        else:
-            logging.info("Tiles bestaan al – prima.")
+        exists = session.query(CoordinateTile.id).first()
+        if exists:
+            return
 
-def ingest_cycle():
-    """Eén volledige run: tiles → stations → prijzen"""
-    Base.metadata.create_all(engine)
-    ensure_tiles_exist()
+        tiles = generate_tiles(
+            Config.NL_SW_LAT,
+            Config.NL_SW_LON,
+            Config.NL_NE_LAT,
+            Config.NL_NE_LON,
+            Config.TILE_SIZE_LAT,
+            Config.TILE_SIZE_LON,
+        )
+        for (sw_lat, sw_lon, ne_lat, ne_lon) in tiles:
+            session.add(
+                CoordinateTile(
+                    sw_lat=sw_lat,
+                    sw_lon=sw_lon,
+                    ne_lat=ne_lat,
+                    ne_lon=ne_lon,
+                )
+            )
+        session.commit()
+        logging.info("Tiles aangemaakt.")
 
-    rate = RateLimiter(per_second=Config.REQUESTS_PER_SECOND)
-    client = EndpointClient(rate_limiter=rate)
 
-    all_ids: set[str] = set()
+def _collect_station_ids(client: EndpointClient) -> list[str]:
+    """scan alle tiles en verzamel unieke stations"""
+    ids: set[str] = set()
+
     with SessionLocal() as session:
         tiles = session.query(CoordinateTile).all()
+        total = len(tiles)
+
         for idx, t in enumerate(tiles, start=1):
-            logging.info(f"Tile {idx}/{len(tiles)}: ({t.sw_lat},{t.sw_lon})→({t.ne_lat},{t.ne_lon})")
-            items = client.list_fuel_stations_bbox(t.sw_lat, t.sw_lon, t.ne_lat, t.ne_lon)
+            if _shutdown:
+                break
+
+            logging.info(f"Scan tile {idx}/{total}")
+            items = client.list_fuel_stations_bbox(
+                t.sw_lat,
+                t.sw_lon,
+                t.ne_lat,
+                t.ne_lon,
+            )
+
             for it in items:
-                addr = (it.get("address") or {})
+                addr = it.get("address") or {}
                 iso3 = addr.get("iso3CountryCode")
+
                 if Config.COUNTRY_FILTER and iso3 and iso3 != Config.COUNTRY_FILTER:
                     continue
-                all_ids.add(it.get("id"))
+
+                sid = it.get("id")
+                if sid:
+                    ids.add(sid)
+
             t.last_scanned_at = datetime.utcnow()
             session.add(t)
+
         session.commit()
 
-    logging.info(f"Unieke stations gevonden: {len(all_ids)}")
+    logging.info(f"{len(ids)} stations gevonden.")
+    return sorted(ids)
 
+
+def _store_station_batch(client: EndpointClient, station_ids: list[str]) -> None:
     processed = 0
     with SessionLocal() as session:
-        for sid in sorted(all_ids):
+        for sid in station_ids:
+            if _shutdown:
+                break
+
             details = client.get_station_details(sid)
             if not details:
                 continue
-            upsert_station(session, details)
-            insert_prices(session, sid, details.get("prices") or [])
+
+            _upsert_station(session, details)
+            _insert_prices(session, sid, details.get("prices") or [])
             processed += 1
+
             if processed % 100 == 0:
                 session.commit()
-                logging.info(f"{processed} stations verwerkt…")
-        session.commit()
-    # Bereken en sla gemiddelde prijs per brandstoftype op, gebaseerd op de laatste prijs per station
-    with SessionLocal() as session:
-        from sqlalchemy import text
+                logging.info(f"{processed} stations verwerkt.")
 
+        session.commit()
+
+    logging.info(f"Totaal verwerkt: {processed} stations.")
+
+
+def _store_avg_prices() -> None:
+    now = datetime.utcnow()
+
+    with SessionLocal() as session:
         avg_sql = text(
             """
             WITH last AS (
@@ -130,92 +196,110 @@ def ingest_cycle():
               JOIN (
                 SELECT station_id, fuel_type, MAX(collected_at) AS max_ts
                 FROM fuel_station_prices
-                WHERE value_eur_per_l IS NOT NULL AND value_eur_per_l > 0
+                WHERE value_eur_per_l IS NOT NULL
+                  AND value_eur_per_l > 0
                 GROUP BY station_id, fuel_type
-              ) lastp ON lastp.station_id = p.station_id AND (lastp.fuel_type IS NOT DISTINCT FROM p.fuel_type) AND lastp.max_ts = p.collected_at
+              ) lastp
+                ON lastp.station_id = p.station_id
+               AND (lastp.fuel_type IS NOT DISTINCT FROM p.fuel_type)
+               AND lastp.max_ts = p.collected_at
             )
-            SELECT fuel_type, AVG(value_eur_per_l) AS avg_price, COUNT(*) AS cnt
+            SELECT fuel_type,
+                   AVG(value_eur_per_l) AS avg_price,
+                   COUNT(*) AS cnt
             FROM last
             GROUP BY fuel_type
             """
         )
 
         rows = session.execute(avg_sql).mappings().all()
-        now = datetime.utcnow()
+
         for r in rows:
-            rec = AvgFuelPrice(
-                fuel_type=r["fuel_type"],
-                avg_price=r["avg_price"],
-                sample_count=r["cnt"],
-                run_timestamp=now,
+            session.add(
+                AvgFuelPrice(
+                    fuel_type=r["fuel_type"],
+                    avg_price=r["avg_price"],
+                    sample_count=r["cnt"],
+                    run_timestamp=now,
+                )
             )
-            session.add(rec)
+
         session.commit()
-        logging.info(f"Gemiddelde prijzen opgeslagen ({len(rows)} brandstoftypes).")
 
-        # Opruimen van raw prijs-records: bewaar alleen de data van de
-        # zojuist afgeronde run (run_timestamp == now). Verwijder alle oudere
-        # prijsrecords zodat de tabel niet onnodig groeit. De averages per
-        # run blijven bewaard in `avg_fuel_prices`.
+    logging.info("Gemiddelden opgeslagen.")
+
+
+def _cleanup_old_prices(cutoff_ts: datetime) -> None:
+    with SessionLocal() as session:
         try:
-            run_ts = now
-            logging.info(f"Verwijder raw prijsrecords ouder dan run_timestamp {run_ts.isoformat()} (houd alleen huidige run).")
-
             cleanup_sql = text(
                 """
                 DELETE FROM fuel_station_prices
-                WHERE collected_at < :run_ts
+                WHERE collected_at < :cutoff
                 """
             )
-
-            # Verwijder in één transactie
-            session.execute(cleanup_sql, {"run_ts": run_ts})
+            session.execute(cleanup_sql, {"cutoff": cutoff_ts})
             session.commit()
-            logging.info("Opruiming van oudere raw prices voltooid; alleen huidige run behouden.")
+            logging.info("Oude prijzen verwijderd (alleen huidige run bewaard).")
         except Exception as e:
-            logging.error(f"Fout tijdens opruimen van oude prijzen: {e}")
+            session.rollback()
+            logging.error(f"Opruimfout: {e}")
 
-    logging.info("Run voltooid!")
 
-def main():
-    logging.info("Start ingest-scheduler: eerste run wordt direct uitgevoerd, daarna elk uur op :30 (UTC)")
+def run_ingest_once() -> None:
+    rate = RateLimiter(per_second=Config.REQUESTS_PER_SECOND)
+    client = EndpointClient(rate_limiter=rate)
 
-    # Eerste run direct bij startup (tenzij er al een shutdown is aangevraagd)
+    station_ids = _collect_station_ids(client)
+
+    _store_station_batch(client, station_ids)
+
+    _store_avg_prices()
+    _cleanup_old_prices()
+
+
+def _sleep_interval(total_seconds: float) -> None:
+    chunk = max(1, Config.SCHEDULER_SLEEP_CHUNK_SECONDS)
+    remaining = total_seconds
+    while remaining > 0 and not _shutdown:
+        t = min(chunk, remaining)
+        time.sleep(t)
+        remaining -= t
+
+
+def main() -> None:
+    logging.info("Ingest start.")
+
+    Base.metadata.create_all(engine)
+    _ensure_tiles_exist()
+
     if not _shutdown:
-        logging.info("Start eerste (directe) ingest-run bij startup...")
         try:
-            ingest_cycle()
+            logging.info("Run start.")
+            start_ts = time.time()
+            run_ingest_once()
+            logging.info(f"Run klaar in {(time.time() - start_ts):.1f}s.")
         except Exception as e:
-            logging.error(f"Fout in eerste ingest-cycle: {e}")
+            logging.error(f"Ingest fout: {e}")
 
-    # Scheduler loop: plan volgende runs op elk uur:30
     while not _shutdown:
-        now = datetime.utcnow()
-        next_run = now.replace(minute=30, second=0, microsecond=0)
-        if now >= next_run:
-            next_run = next_run + timedelta(hours=1)
-
-        wait_seconds = (next_run - now).total_seconds()
-        logging.info(f"Volgende ingest-run gepland op {next_run.isoformat()} UTC (in {wait_seconds/60:.1f} minuten)")
-
-        chunk = max(1, Config.SCHEDULER_SLEEP_CHUNK_SECONDS)
-        while wait_seconds > 0 and not _shutdown:
-            to_sleep = min(chunk, wait_seconds)
-            time.sleep(to_sleep)
-            wait_seconds -= to_sleep
+        wait_minutes = max(1, Config.INGEST_INTERVAL_MINUTES)
+        logging.info(f"Wachten {wait_minutes}m tot volgende run.")
+        _sleep_interval(wait_minutes * 60)
 
         if _shutdown:
             break
 
-        start = time.time()
         try:
-            ingest_cycle()
+            logging.info("Run start.")
+            start_ts = time.time()
+            run_ingest_once()
+            logging.info(f"Run klaar in {(time.time() - start_ts):.1f}s.")
         except Exception as e:
-            logging.error(f"Fout in ingest-cycle: {e}")
-        duration = time.time() - start
-        logging.info(f"Cyclus duurde {duration/60:.1f} minuten.")
+            logging.error(f"Ingest fout: {e}")
 
-    logging.info("Netjes afgesloten.")
+    logging.info("Ingest gestopt.")
+
 
 if __name__ == "__main__":
     main()

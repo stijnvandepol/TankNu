@@ -15,7 +15,8 @@ jobs:
     runs-on: [self-hosted]
 
     env:
-      COMPOSE_PROJECT_NAME: mijnapp
+      COMPOSE_PROJECT_NAME: tanknu
+      DB_VOLUME_NAME: tanknu_dbdata
 
     steps:
       - name: Pre-clean workspace
@@ -52,42 +53,45 @@ jobs:
           DC="${{ steps.dccmd.outputs.cmd }}"
           $DC config >/dev/null
 
-      - name: Nuke host docker state
-        shell: bash
-        run: |
-          set -e
-
-          echo ">>> Stop ALL containers (if any)"
-          if [ -n "$(docker ps -q)" ]; then
-            docker stop $(docker ps -q) || true
-          fi
-
-          echo ">>> Remove ALL containers (if any)"
-          if [ -n "$(docker ps -aq)" ]; then
-            docker rm -f $(docker ps -aq) || true
-          fi
-
-          echo ">>> Remove ALL volumes (if any)"
-          if [ -n "$(docker volume ls -q)" ]; then
-            docker volume rm $(docker volume ls -q) || true
-          fi
-
-          echo ">>> Prune networks/images that are dangling"
-          docker network prune -f || true
-          docker image prune -f || true
-          docker builder prune -f || true
-
-          # optioneel: volledig image wipe (incl. non-dangling) => uncomment als je écht ALLES wilt
-          # if [ -n "$(docker image ls -q)" ]; then
-          #   docker rmi -f $(docker image ls -q) || true
-          # fi
-
-      - name: Compose down safety (orphans etc)
+      - name: Tear down stack (keep DB volume)
         shell: bash
         run: |
           set -e
           DC="${{ steps.dccmd.outputs.cmd }}"
-          $DC down --remove-orphans --rmi all --volumes || true
+          DB_VOL="${DB_VOLUME_NAME}"
+
+          echo ">>> Compose down (containers/networks/images) zonder volumes eerst"
+          # We doen bewust géén --volumes hier zodat $DB_VOL niet meteen weg is
+          $DC down --remove-orphans --rmi all || true
+
+          echo ">>> Alle containers die nog draaien op host stoppen (safety, idempotent)"
+          if [ -n "$(docker ps -q)" ]; then
+            docker stop $(docker ps -q) || true
+          fi
+          if [ -n "$(docker ps -aq)" ]; then
+            docker rm -f $(docker ps -aq) || true
+          fi
+
+          echo ">>> Hernoem DB volume tijdelijk zodat we 'm niet weggooien"
+          # We gaan de volumes die NIET db zijn wipen.
+          # Docker kent geen 'rename volume', dus we beschermen via filter.
+          # Strategie:
+          #   - lijst alle volumes
+          #   - verwijder alles behalve $DB_VOL
+          ALL_VOLS=$(docker volume ls -q)
+          for V in $ALL_VOLS; do
+            if [ "$V" != "$DB_VOL" ]; then
+              echo "Deleting volume: $V"
+              docker volume rm "$V" || true
+            else
+              echo "Keeping DB volume: $V"
+            fi
+          done
+
+          echo ">>> Prune dangling networks/images/build cache"
+          docker network prune -f || true
+          docker image prune -f || true
+          docker builder prune -f || true
 
       - name: Build fresh & up
         shell: bash
@@ -98,13 +102,18 @@ jobs:
           echo ">>> Build images with --no-cache and pull latest bases"
           $DC build --pull --no-cache
 
-          echo ">>> Bring stack up clean"
+          echo ">>> Bring stack up clean using existing DB volume"
           $DC up -d --remove-orphans --renew-anon-volumes
 
       - name: Status
         shell: bash
         run: |
           DC="${{ steps.dccmd.outputs.cmd }}"
-          $DC ps
-          docker ps
+          echo "== Compose ps =="
+          $DC ps || true
+
+          echo "== docker ps =="
+          docker ps || true
+
+          echo "== Volumes on host (DB volume should still exist) =="
           docker volume ls

@@ -213,6 +213,7 @@ def stations_cheapest(
         description="EURO95/E10, EURO98/E5, DIESEL/B7, AUTOGAS/LPG",
     ),
     price_tier_max: Optional[int] = Query(None, ge=1, le=3),
+    country_iso3: Optional[str] = Query(None, description="Optioneel: ISO3 landcode om resultaten op land te filteren (bijv. NLD)"),
     limit: int = Query(10, gt=1, le=100),
     session: Session = Depends(get_session),
 ):
@@ -270,6 +271,7 @@ def stations_cheapest(
         FROM nearest n
         JOIN latest l ON l.station_id = n.id
         WHERE (:tier_max IS NULL OR l.price_tier_value <= :tier_max)
+          AND (:country_iso3 IS NULL OR UPPER(TRIM(n.iso3_country_code)) = UPPER(TRIM(:country_iso3)))
         ORDER BY l.value_eur_per_l ASC, n.distance_km ASC
         LIMIT :limit
         """
@@ -284,6 +286,7 @@ def stations_cheapest(
             "ft": ft,
             "tier_max": price_tier_max,
             "limit": limit,
+            "country_iso3": country_iso3,
         },
     ).mappings().all()
 
@@ -395,35 +398,99 @@ def get_station(
 
 
 @app.get("/avg-prices/latest", response_model=List[AvgPriceOut])
-def avg_prices_latest(session: Session = Depends(get_session)):
-    sql = text(
-        """
-        SELECT
-            ap.fuel_type,
-            ap.avg_price,
-            ap.sample_count,
-            ap.run_timestamp,
-            ap.created_at
-        FROM avg_fuel_prices ap
-        JOIN (
-          SELECT fuel_type, MAX(run_timestamp) AS max_run
-          FROM avg_fuel_prices
-          GROUP BY fuel_type
-        ) last
-          ON last.fuel_type IS NOT DISTINCT FROM ap.fuel_type
-         AND last.max_run = ap.run_timestamp
-        """
-    )
+def avg_prices_latest(
+        country_iso3: Optional[str] = Query(None, description="Optioneel: ISO3 landcode om resultaten op land te filteren (bijv. NLD)"),
+        session: Session = Depends(get_session),
+):
+        # If client requested country-scoped averages, compute from raw prices joined with stations (normalized comparison)
+        if country_iso3:
+                sql = text(
+                        """
+                        WITH last_per_station AS (
+                            SELECT p.station_id, p.fuel_type, p.value_eur_per_l, p.collected_at
+                            FROM fuel_station_prices p
+                            JOIN (
+                                SELECT station_id, fuel_type, MAX(collected_at) AS max_ts
+                                FROM fuel_station_prices
+                                WHERE value_eur_per_l IS NOT NULL
+                                    AND value_eur_per_l > 0
+                                GROUP BY station_id, fuel_type
+                            ) lastp
+                                ON lastp.station_id = p.station_id
+                             AND (lastp.fuel_type IS NOT DISTINCT FROM p.fuel_type)
+                             AND lastp.max_ts = p.collected_at
+                            JOIN fuel_stations fs ON fs.id = p.station_id
+                            WHERE UPPER(TRIM(fs.iso3_country_code)) = UPPER(TRIM(:country_iso3))
+                        )
+                        SELECT
+                            fuel_type,
+                            AVG(value_eur_per_l) AS avg_price,
+                            COUNT(*) AS sample_count,
+                            MAX(collected_at) AS run_timestamp,
+                            NOW() AS created_at
+                        FROM last_per_station
+                        GROUP BY fuel_type
+                        """
+                )
 
-    rows = session.execute(sql).mappings().all()
-    return [AvgPriceOut(**r) for r in rows]
+                rows = session.execute(sql, {"country_iso3": country_iso3}).mappings().all()
+                return [AvgPriceOut(**r) for r in rows]
+
+        # Default: return latest averages from avg_fuel_prices table
+        sql = text(
+                """
+                SELECT
+                        ap.fuel_type,
+                        ap.avg_price,
+                        ap.sample_count,
+                        ap.run_timestamp,
+                        ap.created_at
+                FROM avg_fuel_prices ap
+                JOIN (
+                    SELECT fuel_type, MAX(run_timestamp) AS max_run
+                    FROM avg_fuel_prices
+                    GROUP BY fuel_type
+                ) last
+                    ON last.fuel_type IS NOT DISTINCT FROM ap.fuel_type
+                 AND last.max_run = ap.run_timestamp
+                """
+        )
+
+        rows = session.execute(sql).mappings().all()
+        return [AvgPriceOut(**r) for r in rows]
 
 
 @app.get("/avg-prices/history", response_model=List[AvgPriceOut])
 def avg_prices_history(
     fuel_type: Optional[str] = Query(None),
+    country_iso3: Optional[str] = Query(None, description="Optioneel: ISO3 landcode om resultaten op land te filteren (bijv. NLD)"),
     session: Session = Depends(get_session),
 ):
+    # If a country is provided, compute daily averages from raw prices joined with stations
+    if country_iso3:
+        sql = text(
+            """
+            SELECT
+              p.fuel_type,
+              AVG(p.value_eur_per_l) AS avg_price,
+              COUNT(DISTINCT p.station_id) AS sample_count,
+              DATE_TRUNC('day', p.collected_at) AS run_timestamp,
+              MIN(p.collected_at) AS created_at
+            FROM fuel_station_prices p
+            JOIN fuel_stations fs ON fs.id = p.station_id
+            WHERE UPPER(TRIM(fs.iso3_country_code)) = UPPER(TRIM(:country_iso3))
+              AND p.value_eur_per_l IS NOT NULL
+              AND p.value_eur_per_l > 0
+              AND (:ft IS NULL OR p.fuel_type = :ft)
+            GROUP BY DATE_TRUNC('day', p.collected_at), p.fuel_type
+            ORDER BY DATE_TRUNC('day', p.collected_at) DESC
+            """
+        )
+
+        rows = session.execute(sql, {"ft": fuel_type, "country_iso3": country_iso3}).mappings().all()
+        return [AvgPriceOut(**r) for r in rows]
+
+    # Default: read history from avg_fuel_prices table
     if fuel_type:
         sql = text(
             """

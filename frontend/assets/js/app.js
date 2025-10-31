@@ -49,7 +49,6 @@ window.addEventListener('load', () => {
       };
       statusEl.className = 'location-status';
       statusEl.innerHTML = '<span class="icon">✅</span><span>Locatie gevonden</span>';
-      // Populate manual input with blank or leave as-is
     },
     (error) => {
       console.error('Location error:', error);
@@ -57,7 +56,6 @@ window.addEventListener('load', () => {
       statusEl.innerHTML = '<span class="icon">⚠️</span><span>Geen toegang tot locatie</span>';
     }
   );
-  // Initialize manual location input handlers
   setupManualLocation();
 });
 
@@ -96,7 +94,7 @@ async function searchNearbyStations() {
     if (!res.ok) throw new Error(`API error: ${res.status}`);
     const stations = await res.json();
     displayResults(stations, fuelType, 'nearbyResults', true);
-    // Update small 'Bijgewerkt' label using latest avg run timestamp for this fuel
+    
     try {
       const latestRes = await fetch(`${API_BASE}/avg-prices/latest`);
       if (latestRes.ok) {
@@ -137,14 +135,14 @@ async function searchNationwideStations() {
   resultsEl.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p style="margin-top: 16px;">Beste prijzen ophalen...</p></div>';
 
   try {
-    const url = `${API_BASE}/stations/cheapest?lat=52.0907&lon=5.1214&radius_km=100&fuel_type=${fuelType}&limit=${limit}`;
+    const url = `${API_BASE}/stations/cheapest?lat=52.0907&lon=5.1214&radius_km=100&fuel_type=${fuelType}&limit=${limit}&country_iso3=NLD`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`API error: ${res.status}`);
     const stations = await res.json();
     displayResults(stations, fuelType, 'nationwideResults', false);
-    // Update small 'Bijgewerkt' label for nationwide panel
+    
     try {
-      const latestRes = await fetch(`${API_BASE}/avg-prices/latest`);
+      const latestRes = await fetch(`${API_BASE}/avg-prices/latest?country_iso3=NLD`);
       if (latestRes.ok) {
         const latestData = await latestRes.json();
         const cur = latestData.find(i => i.fuel_type === fuelType);
@@ -184,8 +182,7 @@ async function loadPriceData() {
   resultsEl.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p style="margin-top: 16px;">Prijsdata ophalen...</p></div>';
 
   try {
-    // Haal huidige gemiddelde op
-    const latestRes = await fetch(`${API_BASE}/avg-prices/latest`);
+    const latestRes = await fetch(`${API_BASE}/avg-prices/latest?country_iso3=NLD`);
     if (!latestRes.ok) throw new Error(`API error: ${latestRes.status}`);
     const latestData = await latestRes.json();
     const currentFuel = latestData.find(item => item.fuel_type === fuelType);
@@ -197,13 +194,11 @@ async function loadPriceData() {
       currentPriceCard.style.display = 'block';
     }
 
-    // Haal historische data op
-    const historyRes = await fetch(`${API_BASE}/avg-prices/history?fuel_type=${fuelType}`);
+    const historyRes = await fetch(`${API_BASE}/avg-prices/history?fuel_type=${fuelType}&country_iso3=NLD`);
     if (!historyRes.ok) throw new Error(`API error: ${historyRes.status}`);
     const historyData = await historyRes.json();
 
     if (historyData && historyData.length > 0) {
-      // Filter laatste 30 dagen
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
@@ -241,12 +236,11 @@ function renderChart(data) {
     priceChart.destroy();
   }
 
-  // Groepeer data per dag en bereken gemiddelde
   const dailyData = {};
   
   data.forEach(item => {
     const date = new Date(item.run_timestamp);
-    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD formaat
+    const dateKey = date.toISOString().split('T')[0];
     
     if (!dailyData[dateKey]) {
       dailyData[dateKey] = {
@@ -257,7 +251,6 @@ function renderChart(data) {
     dailyData[dateKey].prices.push(item.avg_price);
   });
 
-  // Bereken gemiddelde per dag en sorteer
   const dailyAverages = Object.keys(dailyData)
     .sort()
     .map(dateKey => ({
@@ -362,6 +355,24 @@ function buildDirectionsUrl(origin, destination) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destStr)}&travelmode=driving`;
 }
 
+// ===== VLAG BEPALEN OP BASIS VAN LANDCODE =====
+function getCountryFlag(countryCode) {
+  if (!countryCode) return '';
+  const code = countryCode.toUpperCase().trim();
+  
+  if (code === 'NLD') return '';
+  
+  const flags = {
+    'DEU': '🇩🇪',
+    'BEL': '🇧🇪',
+    'LUX': '🇱🇺',
+    'FRA': '🇫🇷',
+    'GBR': '🇬🇧',
+  };
+  
+  return flags[code] || '🌍';
+}
+
 // ===== RESULTATEN TONEN =====
 function displayResults(stations, fuelType, targetElementId, showDistance) {
   const resultsEl = document.getElementById(targetElementId);
@@ -394,6 +405,18 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
       ? `<span class="station-distance">📍 ${Number(station.distance_km).toFixed(1)} km</span>`
       : '';
 
+    // vlag alleen tonen in de "dichtbij"-tab (showDistance === true)
+    const countryFlag = showDistance ? getCountryFlag(station.iso3_country_code) : '';
+
+    const flagBadge = countryFlag
+      ? `<span class="country-flag" title="${station.country || 'Buitenland'}">${countryFlag}</span>`
+      : '';
+
+    // gebruik gewoon de titel zoals hij is aangeleverd
+    const titleWithFlag = flagBadge
+      ? `${station.title || 'Onbekend station'} ${flagBadge}`
+      : (station.title || 'Onbekend station');
+
     const routeUrl = buildDirectionsUrl(
       userLocation,
       {
@@ -413,7 +436,7 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
       <div class="station-card">
         ${rankBadge}
         <div class="station-header">
-          <div class="station-name">${station.title || 'Onbekend station'}</div>
+          <div class="station-name">${titleWithFlag}</div>
           <div class="station-price">
             ${priceValue}
             ${price ? '<span class="price-unit">/L</span>' : ''}
@@ -439,24 +462,18 @@ function showError(targetElementId, message) {
 }
 
 // ===== DATUM FORMATTEREN =====
-// Parse timestamp coming from the API into a JS Date.
-// The backend may return an ISO string without timezone (naive UTC).
-// If no timezone is present we treat it as UTC by appending a 'Z'.
 function parseTimestamp(ts) {
   if (!ts) return null;
   if (ts instanceof Date) return ts;
-  // If string already contains a timezone Z or +HH:MM/-HH:MM, let Date parse it.
   if (/[zZ]$|[+\-]\d{2}:?\d{2}$/.test(ts)) {
     return new Date(ts);
   }
-  // Otherwise assume UTC (append Z)
   return new Date(ts + 'Z');
 }
 
 function formatDate(dateInput) {
   const date = parseTimestamp(dateInput);
   if (!date || isNaN(date.getTime())) return 'Onbekende tijd';
-  // Return a locale-formatted string (NL) with date and time.
   return date.toLocaleDateString('nl-NL', {
     day: 'numeric',
     month: 'long',
@@ -466,14 +483,13 @@ function formatDate(dateInput) {
   });
 }
 
-// Format only time (HH:MM) for the small 'Bijgewerkt' label
 function formatTime(dateInput) {
   const date = parseTimestamp(dateInput);
   if (!date || isNaN(date.getTime())) return 'Onbekend';
   return date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
 
-// -------------------- Manual location autocomplete --------------------
+// ===== MANUAL LOCATION =====
 function debounce(fn, wait) {
   let t;
   return (...args) => {
@@ -562,7 +578,7 @@ function escapeHtml(str) {
   });
 }
 
-// === HELP OVERLAY TOGGLE ===
+// ===== HELP OVERLAY =====
 (function initHelpOverlay() {
   const openBtn = document.getElementById('helpOpenBtn');
   const closeBtn = document.getElementById('helpCloseBtn');

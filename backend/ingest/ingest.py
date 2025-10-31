@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import requests
 import logging
 import time
 import signal
@@ -43,6 +45,39 @@ SessionLocal = sessionmaker(
 
 _shutdown = False
 
+def _send_discord_report(start_time: float, stations_found: int, stations_processed: int, error: str | None = None):
+    webhook_url = os.getenv("DISCORD_WEBHOOK")
+    if not webhook_url:
+        logging.warning("Geen DISCORD_WEBHOOK ingesteld — Discord melding wordt overgeslagen.")
+        return
+
+    end_time = time.time()
+    duration = end_time - start_time
+    start_dt = datetime.utcfromtimestamp(start_time).isoformat() + "Z"
+    end_dt = datetime.utcfromtimestamp(end_time).isoformat() + "Z"
+
+    if error:
+        status_icon = "⚠️"
+        status_text = f"Foutmelding: {error}"
+    else:
+        status_icon = "✅"
+        status_text = "Run succesvol afgerond"
+
+    message = (
+        f"{status_icon} **Ingest Run Samenvatting**\n"
+        f"Start: `{start_dt}`\n"
+        f"Einde: `{end_dt}`\n"
+        f"Duur: `{duration:.1f} sec`\n"
+        f"Stations gevonden: `{stations_found}`\n"
+        f"Stations verwerkt: `{stations_processed}`\n"
+        f"Status: {status_text}"
+    )
+
+    try:
+        requests.post(webhook_url, json={"content": message}, timeout=5)
+        logging.info("Discord melding verzonden.")
+    except Exception as e:
+        logging.error(f"Kon Discord melding niet verzenden: {e}")
 
 def _handle_sigterm(*_):
     global _shutdown
@@ -244,16 +279,26 @@ def _cleanup_old_prices(cutoff_ts: datetime) -> None:
             logging.error(f"Opruimfout: {e}")
 
 
-def run_ingest_once() -> None:
+def run_ingest_once() -> dict:
     rate = RateLimiter(per_second=Config.REQUESTS_PER_SECOND)
     client = EndpointClient(rate_limiter=rate)
 
     run_ts = datetime.utcnow()
 
     station_ids = _collect_station_ids(client)
+    stations_found = len(station_ids)
+
     _store_station_batch(client, station_ids, run_ts)
+    stations_processed = len(station_ids)
+
     _store_avg_prices()
     _cleanup_old_prices(run_ts)
+
+    return {
+        "stations_found": stations_found,
+        "stations_processed": stations_processed
+    }
+
 
 
 def _sleep_interval(total_seconds: float) -> None:
@@ -280,10 +325,14 @@ def main() -> None:
 
     if not _shutdown:
         try:
-            logging.info("Run start.")
             start_ts = time.time()
-            run_ingest_once()
-            logging.info(f"Run klaar in {(time.time() - start_ts):.1f}s.")
+            try:
+                result = run_ingest_once()
+                logging.info(f"Run klaar in {(time.time() - start_ts):.1f}s.")
+                _send_discord_report(start_ts, result.get("stations_found", 0), result.get("stations_processed", 0))
+            except Exception as e:
+                logging.error(f"Ingest fout: {e}")
+                _send_discord_report(start_ts, 0, 0, error=str(e))
         except Exception as e:
             logging.error(f"Ingest fout: {e}")
 
@@ -302,10 +351,14 @@ def main() -> None:
             break
 
         try:
-            logging.info("Run start.")
             start_ts = time.time()
-            run_ingest_once()
-            logging.info(f"Run klaar in {(time.time() - start_ts):.1f}s.")
+            try:
+                result = run_ingest_once()
+                logging.info(f"Run klaar in {(time.time() - start_ts):.1f}s.")
+                _send_discord_report(start_ts, result.get("stations_found", 0), result.get("stations_processed", 0))
+            except Exception as e:
+                logging.error(f"Ingest fout: {e}")
+                _send_discord_report(start_ts, 0, 0, error=str(e))
         except Exception as e:
             logging.error(f"Ingest fout: {e}")
 

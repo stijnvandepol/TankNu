@@ -28,6 +28,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DISCORD_WEBHOOK: ${DISCORD_WEBHOOK}
     command: ["python", "-m", "backend.ingest.ingest"]
     restart: on-failure
 

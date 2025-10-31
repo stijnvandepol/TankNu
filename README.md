@@ -42,7 +42,16 @@ cd Tanknu
 
 **Stap 2:** Pas eventueel het `.env` bestand aan
 
-Je kunt hier database credentials en poortnummers wijzigen.
+Je kunt hier credentials wijzigen.
+
+```bash
+POSTGRES_HOST=db
+POSTGRES_PASSWORD=Wachtwoord
+POSTGRES_DB=fueldata
+POSTGRES_USER=dbuser
+
+DISCORD_WEBHOOK=
+```
 
 **Stap 3:** Start de docker stack
 

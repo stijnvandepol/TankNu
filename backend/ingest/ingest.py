@@ -53,6 +53,8 @@ def _send_discord_report(start_time: float, stations_found: int, stations_proces
 
     end_time = time.time()
     duration = end_time - start_time
+    duration_min = int(duration // 60)
+    duration_sec = int(duration % 60)
     start_dt = datetime.utcfromtimestamp(start_time).isoformat() + "Z"
     end_dt = datetime.utcfromtimestamp(end_time).isoformat() + "Z"
 
@@ -67,7 +69,7 @@ def _send_discord_report(start_time: float, stations_found: int, stations_proces
         f"{status_icon} **Ingest Run Samenvatting**\n"
         f"Start: `{start_dt}`\n"
         f"Einde: `{end_dt}`\n"
-        f"Duur: `{duration:.1f} sec`\n"
+        f"⏱Duur: `{duration_min} min {duration_sec} sec`\n"
         f"Stations gevonden: `{stations_found}`\n"
         f"Stations verwerkt: `{stations_processed}`\n"
         f"Status: {status_text}"

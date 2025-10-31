@@ -510,7 +510,7 @@ function setupManualLocation() {
       return;
     }
     try {
-      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&addressdetails=1&limit=6&countrycodes=nl`;
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&addressdetails=1&limit=6`;
       const res = await fetch(url, { headers: { 'Accept-Language': 'nl' } });
       if (!res.ok) throw new Error('geocode error');
       const items = await res.json();

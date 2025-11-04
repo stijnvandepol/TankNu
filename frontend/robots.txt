@@ -1,7 +1,7 @@
 User-agent: *
-Disallow:
 
-# Allow all crawlers. If you want to block specific agents, add Disallow lines.
+Allow: /
 
-# Point crawlers to the canonical sitemap
+Disallow: /api/
+
 Sitemap: https://www.tanknu.nl/sitemap.xml

@@ -133,7 +133,15 @@
       border-radius: 10px;
       text-decoration: none;
       transition: all 0.3s ease;
-      margin-left: 16px;
+    }
+
+    /* Group for hero CTA buttons so we can control spacing and wrapping on mobile */
+    .cta-group {
+      display: inline-flex;
+      gap: 16px; /* space between buttons */
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap; /* allow wrapping on very small screens but keep a gap */
     }
 
     .cta-secondary:hover {
@@ -370,6 +378,21 @@
         height: 56px;
       }
 
+      /* Make CTAs more compact on small screens and keep spacing */
+      .cta-group {
+        gap: 12px;
+      }
+
+      .cta-button {
+        padding: 12px 28px;
+        font-size: 16px;
+      }
+
+      .cta-secondary {
+        padding: 10px 24px;
+        font-size: 15px;
+      }
+
       .section-title {
         font-size: 32px;
       }
@@ -397,7 +420,7 @@
       </div>
       <h1>Nooit meer te veel betalen bij het tanken</h1>
       <p>Real-time brandstofprijzen van álle tankstations in Nederland. Simpel. Snel. Gratis.</p>
-      <div>
+      <div class="cta-group">
         <a href="https://tanknu.nl" class="cta-button">Probeer nu</a>
         <a href="#features" class="cta-secondary">Hoe werkt het?</a>
       </div>

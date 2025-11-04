@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TankNu - Altijd op zoek naar de goedkoopste tankstations</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary: #1e40af;
+      --primary-dark: #1e3a8a;
+      --secondary: #0ea5e9;
+      --accent: #fbbf24;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--gray-800);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Hero sectie */
+    .hero {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(circle at 30% 50%, rgba(255,255,255,0.1) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    .hero-content {
+      max-width: 800px;
+      text-align: center;
+      position: relative;
+      z-index: 2;
+    }
+
+    .logo-hero {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .logo-icon-hero {
+      width: 72px;
+      height: 72px;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+    }
+
+    .logo-text-hero {
+      font-size: 64px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .logo-tank { color: #fff; }
+    .logo-nu { color: var(--accent); }
+
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 20px;
+      line-height: 1.2;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .hero p {
+      font-size: 20px;
+      color: rgba(255,255,255,0.95);
+      margin-bottom: 40px;
+      line-height: 1.5;
+    }
+
+    .cta-button {
+      display: inline-block;
+      padding: 16px 40px;
+      background: white;
+      color: var(--primary);
+      font-size: 18px;
+      font-weight: 700;
+      border-radius: 12px;
+      text-decoration: none;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      transition: all 0.3s ease;
+    }
+
+    .cta-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+    }
+
+    .cta-secondary {
+      display: inline-block;
+      padding: 14px 32px;
+      background: transparent;
+      color: white;
+      border: 2px solid rgba(255,255,255,0.4);
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      margin-left: 16px;
+    }
+
+    .cta-secondary:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.6);
+    }
+
+    .github-section {
+      background: var(--gray-800);
+      padding: 60px 20px;
+      text-align: center;
+    }
+
+    .github-section h3 {
+      color: white;
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .github-section p {
+      color: rgba(255,255,255,0.8);
+      font-size: 16px;
+      margin-bottom: 32px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .github-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 32px;
+      background: white;
+      color: var(--gray-800);
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: all 0.3s ease;
+    }
+
+    .github-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(255,255,255,0.2);
+    }
+
+    .github-icon {
+      width: 24px;
+      height: 24px;
+    }
+
+    /* Features sectie */
+    .features {
+      padding: 80px 20px;
+      background: var(--gray-50);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-title {
+      text-align: center;
+      font-size: 42px;
+      font-weight: 800;
+      color: var(--gray-800);
+      margin-bottom: 16px;
+    }
+
+    .section-subtitle {
+      text-align: center;
+      font-size: 18px;
+      color: var(--gray-600);
+      margin-bottom: 60px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 32px;
+      margin-bottom: 60px;
+    }
+
+    .feature-card {
+      background: white;
+      padding: 32px;
+      border-radius: 16px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      transition: all 0.3s ease;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+    }
+
+    .feature-icon {
+      font-size: 48px;
+      margin-bottom: 20px;
+      display: block;
+    }
+
+    .feature-card h3 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--gray-800);
+      margin-bottom: 12px;
+    }
+
+    .feature-card p {
+      color: var(--gray-600);
+      line-height: 1.7;
+      font-size: 16px;
+    }
+
+    .privacy-section {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      padding: 80px 20px;
+      color: white;
+    }
+
+    .privacy-content {
+      max-width: 800px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .privacy-section h2 {
+      font-size: 42px;
+      font-weight: 800;
+      margin-bottom: 24px;
+    }
+
+    .privacy-section p {
+      font-size: 18px;
+      line-height: 1.8;
+      margin-bottom: 20px;
+      opacity: 0.95;
+    }
+
+    .privacy-highlights {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 24px;
+      margin-top: 48px;
+    }
+
+    .privacy-item {
+      background: rgba(255,255,255,0.15);
+      padding: 24px;
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    .privacy-item-icon {
+      font-size: 36px;
+      margin-bottom: 12px;
+    }
+
+    .privacy-item h4 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .privacy-item p {
+      font-size: 14px;
+      opacity: 0.9;
+      margin: 0;
+    }
+
+    .final-cta {
+      padding: 100px 20px;
+      text-align: center;
+      background: white;
+    }
+
+    .final-cta h2 {
+      font-size: 42px;
+      font-weight: 800;
+      color: var(--gray-800);
+      margin-bottom: 20px;
+    }
+
+    .final-cta p {
+      font-size: 18px;
+      color: var(--gray-600);
+      margin-bottom: 40px;
+    }
+
+    footer {
+      background: var(--gray-800);
+      color: white;
+      padding: 32px 20px;
+      text-align: center;
+    }
+
+    footer p {
+      opacity: 0.8;
+      font-size: 14px;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 768px) {
+      .hero h1 {
+        font-size: 36px;
+      }
+
+      .hero p {
+        font-size: 18px;
+      }
+
+      .logo-text-hero {
+        font-size: 48px;
+      }
+
+      .logo-icon-hero {
+        width: 56px;
+        height: 56px;
+      }
+
+      .section-title {
+        font-size: 32px;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .privacy-section h2,
+      .final-cta h2 {
+        font-size: 32px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <div class="hero-content">
+      <div class="logo-hero">
+
+        <div class="logo-text-hero">
+          <img class="logo-icon" src="assets/favicon.svg" alt="TankNu logo" />
+          <span class="logo-tank">Tank</span><span class="logo-nu">Nu</span>
+        </div>
+      </div>
+      <h1>Nooit meer te veel betalen bij het tanken</h1>
+      <p>Real-time brandstofprijzen van álle tankstations in Nederland. Simpel. Snel. Gratis.</p>
+      <div>
+        <a href="https://tanknu.nl" class="cta-button">Probeer nu</a>
+        <a href="#features" class="cta-secondary">Hoe werkt het?</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="features">
+    <div class="container">
+      <h2 class="section-title">Gewoon makkelijk tanken</h2>
+      <p class="section-subtitle">Je wilt geen gedoe – je wilt weten waar het goedkoopst is, en dan erheen. Dat is precies wat TankNu doet.</p>
+      
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="feature-icon">💰</span>
+          <h3>Actuele prijzen</h3>
+          <p>Alle brandstofprijzen van tankstations in heel Nederland. Euro 95, Euro 98, Diesel, LPG. Direct zien wat het kost per liter, geen verrassing aan de pomp.</p>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-icon">📍</span>
+          <h3>Zoek in jouw buurt</h3>
+          <p>Of het nu 5 kilometer is of 50 – jij bepaalt hoever je wilt rijden. Stations sorteren op prijs, afstand zien, en met één tik navigeren via Google Maps.</p>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-icon">🚀</span>
+          <h3>Supersnel overzicht</h3>
+          <p>Geen eindeloos scrollen of advertenties die je afleiden. Open de app, zie direct de goedkoopste opties, klaar. Of kijk landelijk wat de beste deals zijn.</p>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-icon">📊</span>
+          <h3>Inzicht in trends</h3>
+          <p>Zie hoe prijzen bewegen over tijd. Handig als je wilt weten of het slim is om nu te tanken of nog even te wachten. Gewoon uit nieuwsgierigheid kan ook.</p>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-icon">🔒</span>
+          <h3>Jouw privacy staat voorop</h3>
+          <p>We slaan niks op, we tracken niks, we verkopen niks. Je locatie blijft op je eigen telefoon.</p>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-icon">📱</span>
+          <h3>Werkt overal</h3>
+          <p>Geen app store nodig. Gewoon de website openen, zet 'm op je beginscherm en het voelt aan als een echte app. iPhone, Android, maakt niet uit.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="privacy-section">
+    <div class="privacy-content">
+      <h2>Privacy? Vanzelfsprekend.</h2>
+      <p>Er zijn genoeg apps die van alles willen weten over je. Wij niet. TankNu verzamelt geen persoonlijke gegevens, slaat je locatie nergens op en heeft geen trackers ingebouwd.</p>
+      
+      <div class="privacy-highlights">
+        <div class="privacy-item">
+          <div class="privacy-item-icon">🚫</div>
+          <h4>Geen tracking</h4>
+        </div>
+        <div class="privacy-item">
+          <div class="privacy-item-icon">🔐</div>
+          <h4>Lokale data</h4>
+        </div>
+        <div class="privacy-item">
+          <div class="privacy-item-icon">✨</div>
+          <h4>Geen accounts</h4>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="final-cta">
+    <div class="container">
+      <h2>Klaar om te besparen?</h2>
+      <p>Start nu en vind direct de goedkoopste tankstations bij jou in de buurt</p>
+      <a href="https://tanknu.nl" class="cta-button">Naar TankNu.nl</a>
+    </div>
+  </section>
+
+  <section class="github-section">
+    <div class="container">
+      <h3>Voor ontwikkelaars</h3>
+      <p>TankNu is open source. Bekijk de code, draag bij, of meld issues op GitHub.</p>
+      <a href="https://github.com/stijnvandepol/TankNu" target="_blank" class="github-button">
+        <svg class="github-icon" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+        Bekijk op GitHub
+      </a>
+    </div>
+  </section>
+
+  <footer>
+    <p>Gemaakt door <a href="https://stijnvandepol.nl" target="_blank">Stijn van de Pol</a></p>
+  </footer>
+</body>
+</html>

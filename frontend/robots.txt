@@ -4,4 +4,4 @@ Allow: /
 
 Disallow: /api/
 
-Sitemap: https://www.tanknu.nl/sitemap.xml
+Sitemap: https://tanknu.nl/sitemap.xml

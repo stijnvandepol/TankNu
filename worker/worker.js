@@ -10,7 +10,6 @@ function checkRateLimit(ip) {
     entry = { timestamps: [], blockedUntil: 0 };
   }
 
-  // Nog geblokkeerd?
   if (entry.blockedUntil && now < entry.blockedUntil) {
     const retryAfter = Math.ceil((entry.blockedUntil - now) / 1000);
     rateState.set(ip, entry);
@@ -21,7 +20,6 @@ function checkRateLimit(ip) {
     };
   }
 
-  // Eerst deze hit registreren
   entry.timestamps.push(now);
 
   // Alleen hits van de laatste 1000ms bewaren
@@ -31,7 +29,7 @@ function checkRateLimit(ip) {
 
   // Hard block: > 10 pogingen in 1 seconde
   if (count > 10) {
-    entry.blockedUntil = now + 60_000; // 60 sec blokkeren
+    entry.blockedUntil = now + 60_000;
     rateState.set(ip, entry);
     return {
       blocked: true,
@@ -75,7 +73,6 @@ function addCorsHeaders(resp) {
 function handleOptions(request) {
   const headers = request.headers;
 
-  // CORS preflight
   if (
     headers.get("Origin") !== null &&
     headers.get("Access-Control-Request-Method") !== null
@@ -91,7 +88,6 @@ function handleOptions(request) {
     });
   }
 
-  // Simpele OPTIONS
   return new Response(null, {
     status: 204,
     headers: {
@@ -104,12 +100,11 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // CORS preflight
     if (request.method === "OPTIONS") {
       return handleOptions(request);
     }
 
-    // Alleen GET proxy'en
+    // Alleen GET proxy
     if (request.method !== "GET") {
       return addCorsHeaders(
         new Response(
@@ -152,7 +147,6 @@ export default {
     }
 
     // Exactzelfde pad + query als de ANWB API
-    // api.tanknu.nl/routing/... -> api.anwb.nl/routing/...
     const upstreamUrl = new URL(ANWB_BASE + url.pathname + url.search);
 
     // Cache key op basis van volledige upstream URL
@@ -162,13 +156,13 @@ export default {
 
     const cache = caches.default;
 
-    // Probeer eerst cache
+    // Probeer cache
     let response = await cache.match(cacheKey);
     if (response) {
       return addCorsHeaders(response);
     }
 
-    // Niet in cache, upstream fetchen (zonder API-key, gewoon plain)
+    // Niet in cache, upstream fetchen
     response = await fetch(upstreamUrl.toString(), {
       method: "GET",
       cf: {
@@ -176,7 +170,7 @@ export default {
       },
     });
 
-    // Response clonen zodat we 'm kunnen cachen én teruggeven
+    // Response clonen
     const respToCache = new Response(response.body, response);
     const headers = new Headers(respToCache.headers);
     headers.set("Cache-Control", "public, max-age=10");
@@ -187,7 +181,7 @@ export default {
       headers,
     });
 
-    // In cache zetten, async
+    // In cache zetten
     ctx.waitUntil(cache.put(cacheKey, cacheableResponse.clone()));
 
     return addCorsHeaders(cacheableResponse);

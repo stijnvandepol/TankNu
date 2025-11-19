@@ -24,7 +24,7 @@ Je hebt **Docker Desktop** nodig. Of een andere Docker engine, maakt niet uit.
 **Stap 1:** Clone de repository
 
 ```bash
-git clone https://github.com/stijnvandepol/Tanknu-lite.git
+git clone https://github.com/stijnvandepol/TankNu.git
 cd Tanknu-lite
 ```
 

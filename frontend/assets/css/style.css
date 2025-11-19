@@ -669,12 +669,14 @@ input[type="range"]::-moz-range-thumb:active {
 .help-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 20000; /* boven sticky footer en alle andere elementen */
   background: rgba(0,0,0,0.55);
   display: none;                /* .active maakt 'm zichtbaar */
   justify-content: center;
   align-items: center;
   padding: 16px;
+  height: 100dvh; /* iOS dynamic viewport fix */
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
 }
 .help-overlay.active {
   display: flex;
@@ -687,7 +689,7 @@ input[type="range"]::-moz-range-thumb:active {
   box-shadow: 0 24px 48px rgba(0,0,0,0.2);
   width: 100%;
   max-width: 480px;
-  max-height: 90vh;
+  max-height: 90dvh; /* gebruik dynamic vh waar beschikbaar */
   display: flex;
   flex-direction: column;
   position: relative;
@@ -888,24 +890,27 @@ input[type="range"]::-moz-range-thumb:active {
     padding: 0;
     align-items: stretch;
     justify-content: stretch;
+    height: 100dvh;
   }
 
   .help-panel {
     width: 100%;
     max-width: 100%;
-    max-height: 100vh;
-    height: 100vh;
+    max-height: 100dvh;  /* iOS Safari: voorkom crop onderin */
+    height: 100dvh;      /* dynamic viewport height */
+    min-height: 100vh;   /* fallback */
     border-radius: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .help-content {
     flex: 1 1 auto;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 48px 16px 16px 16px;
+    padding: 48px 16px calc(16px + env(safe-area-inset-bottom)) 16px;
     font-size: 1rem;
     line-height: 1.5;
   }
@@ -928,7 +933,7 @@ input[type="range"]::-moz-range-thumb:active {
     flex-shrink: 0;
     font-size: 0.8rem;
     line-height: 1.4;
-    padding: 12px 16px 16px;
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
     text-align: center;
   }
 

@@ -7,19 +7,6 @@ Het idee is simpel: één frontend die je locatie gebruikt, een verzoek naar de 
 
 ---
 
-## Wat zit erin
-
-1. [Overzicht](#overzicht)
-2. [Hoe het werkt](#hoe-het-werkt)
-3. [Installatie](#installatie)
-4. [Architectuur](#architectuur)
-5. [API endpoints](#api-endpoints)
-6. [Database structuur](#database-structuur)
-7. [Configuratie](#configuratie)
-8. [Troubleshooting](#troubleshooting)
-
----
-
 ## 🧭 Overzicht
 
 Deze applicatie doet eigenlijk maar een paar dingen, maar dan goed:

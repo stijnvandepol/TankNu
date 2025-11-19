@@ -1,15 +1,17 @@
 {
   "name": "TankNu",
   "short_name": "TankNu",
+  "description": "Vind de goedkoopste tankstations in Nederland. Actuele prijzen voor Euro95 (E10), Euro98 (E5), Diesel en LPG.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1e40af",
   "icons": [
     {
-      "src": "assets/icon.png",
-      "sizes": "64x64",
-      "type": "image/png"
+      "src": "assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }

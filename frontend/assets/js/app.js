@@ -1,30 +1,13 @@
-const API_BASE = '/api';
+const ANWB_API_BASE = 'https://api.tanknu.nl/routing/points-of-interest/v3/all';
+const MIN_PRICE_EUR_PER_L = 0.10;
+const ANWB_API_KEY = '';
+
 let userLocation = null;
-let priceChart = null;
-
-// ===== TAB SWITCHING =====
-function switchTab(tabName) {
-  document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-  document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
-
-  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-  document.getElementById(`${tabName}-tab`).classList.add('active');
-}
-
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('.tab');
-  if (btn && btn.dataset.tab) {
-    switchTab(btn.dataset.tab);
-  }
-});
 
 // ===== SLIDERS =====
 document.addEventListener('input', (e) => {
   if (e.target.id === 'radius') {
     document.getElementById('radiusValue').textContent = `${e.target.value} km`;
-  }
-  if (e.target.id === 'limitSlider') {
-    document.getElementById('limitValue').textContent = e.target.value;
   }
 });
 
@@ -35,6 +18,7 @@ window.addEventListener('load', () => {
   if (!('geolocation' in navigator)) {
     statusEl.className = 'location-status error';
     statusEl.innerHTML = '<span class="icon">⚠️</span><span>Locatie niet ondersteund</span>';
+    setupManualLocation();
     return;
   }
 
@@ -64,23 +48,166 @@ document.addEventListener('click', async (e) => {
   if (e.target.id === 'searchBtn' || e.target.closest('#searchBtn')) {
     await searchNearbyStations();
   }
-  if (e.target.id === 'nationwideBtn' || e.target.closest('#nationwideBtn')) {
-    await searchNationwideStations();
-  }
-  if (e.target.id === 'loadDataBtn' || e.target.closest('#loadDataBtn')) {
-    await loadPriceData();
-  }
 });
+
+// ===== HULPFUNCTIES VOOR AFSTAND EN BOUNDING BOX =====
+function deg2rad(deg) {
+  return deg * Math.PI / 180;
+}
+
+function computeDistanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/**
+ * Bouw een bounding box rond een punt met een straal + marge.
+ * radiusKm = straal die de gebruiker kiest.
+ * We vragen een iets grotere box op (radiusKm + marge), zodat
+ * we in de frontend exact op radiusKm kunnen filteren.
+ */
+function buildBoundingBox(lat, lon, radiusKm) {
+  const marginKm = Math.max(radiusKm * 0.3, 5); // kleine straal: +5km, 50km: +15km, etc.
+  const effectiveRadius = radiusKm + marginKm;
+
+  const latDelta = effectiveRadius / 111; // ruwweg km -> graden
+  const lonDelta = effectiveRadius / (111 * Math.cos(deg2rad(lat)) || 1e-6);
+
+  return {
+    minLat: lat - latDelta,
+    maxLat: lat + latDelta,
+    minLon: lon - lonDelta,
+    maxLon: lon + lonDelta
+  };
+}
+
+// ===== ANWB-API MAPPING =====
+function mapAnwbPoiToStation(poi, center) {
+  const coords = poi.coordinates || {};
+  const lat = coords.latitude;
+  const lon = coords.longitude;
+
+  const addr = poi.address || {};
+  const street = addr.streetAddress || '';
+  const postal_code = addr.postalCode || '';
+  const city = addr.city || '';
+  const country = addr.country || '';
+  const iso3_country_code = (addr.iso3CountryCode || '').toString().toUpperCase();
+
+  const prices = Array.isArray(poi.prices) ? poi.prices : [];
+  const latest_prices = prices.map(p => ({
+    fuel_type: (p.fuelType || '').toString().toUpperCase(),
+    fuel_name: p.fuelName || '',
+    value_eur_per_l: typeof p.value === 'number' ? p.value : null
+  }));
+
+  let distance_km = null;
+  if (center && typeof lat === 'number' && typeof lon === 'number') {
+    distance_km = computeDistanceKm(center.lat, center.lon, lat, lon);
+  }
+
+  return {
+    id: poi.id || null,
+    title: poi.title || 'Onbekend station',
+    latitude: lat,
+    longitude: lon,
+    street_address: street,
+    postal_code,
+    city,
+    country,
+    iso3_country_code,
+    latest_prices,
+    distance_km
+  };
+}
+
+// ===== BRANDSTOFPRIJS =====
+function getPriceForFuel(station, fuelType) {
+  if (!station || !Array.isArray(station.latest_prices)) return null;
+  const normalizedFuel = (fuelType || '').toString().toUpperCase();
+
+  const priceObj = station.latest_prices.find(p =>
+    (p.fuel_type && p.fuel_type.toString().toUpperCase() === normalizedFuel) ||
+    (p.fuel_name && p.fuel_name.toString().toUpperCase().includes(normalizedFuel))
+  );
+
+  if (!priceObj || typeof priceObj.value_eur_per_l !== 'number') return null;
+
+  return priceObj.value_eur_per_l;
+}
+
+// ===== ANWB-STATIONS OPHALEN EN HIER AL HARD FILTEREN OP VALUE =====
+async function fetchAnwbStationsAround(center, radiusKm, fuelType) {
+  if (!center) throw new Error('Geen center meegegeven');
+
+  const bbox = buildBoundingBox(center.lat, center.lon, radiusKm);
+
+  const params = new URLSearchParams();
+  params.set('type-filter', 'FUEL_STATION');
+  params.set(
+    'bounding-box-filter',
+    `${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon}`
+  );
+
+  if (ANWB_API_KEY) {
+    params.set('apikey', ANWB_API_KEY);
+  }
+
+  const url = `${ANWB_API_BASE}?${params.toString()}`;
+  const res = await fetch(url, {
+    headers: {
+      'Accept': 'application/json',
+      'Accept-Language': 'nl-NL'
+    }
+  });
+
+  if (!res.ok) {
+    throw new Error(`ANWB API error: ${res.status}`);
+  }
+
+  const data = await res.json();
+  const list = Array.isArray(data.value) ? data.value : [];
+
+  const normalizedFuel = fuelType ? fuelType.toString().toUpperCase() : null;
+
+  // PREFILTER OP RUWE ANWB-DATA:
+  // alleen POI's overhouden die voor de gekozen brandstof een value >= MIN_PRICE_EUR_PER_L hebben
+  const filteredRaw = list.filter(poi => {
+    if (!Array.isArray(poi.prices) || !normalizedFuel) return false;
+
+    return poi.prices.some(p => {
+      if (typeof p.value !== 'number') return false;
+      if (p.value < MIN_PRICE_EUR_PER_L) return false;
+
+      const t = (p.fuelType || '').toString().toUpperCase();
+      const n = (p.fuelName || '').toString().toUpperCase();
+
+      return t === normalizedFuel || n.includes(normalizedFuel);
+    });
+  });
+
+  // Map alleen nog de al-gefilterde POI's
+  const stations = filteredRaw.map(poi => mapAnwbPoiToStation(poi, center));
+
+  return stations;
+}
 
 // ===== ZOEKEN DICHTBIJ =====
 async function searchNearbyStations() {
   if (!userLocation) {
-    showError('nearbyResults', 'Geen locatie beschikbaar. Geef toegang tot je locatie.');
+    showError('nearbyResults', 'Geen locatie beschikbaar. Geef toegang tot je locatie of vul handmatig een locatie in.');
     return;
   }
 
   const fuelType = document.getElementById('fuelType').value;
-  const radius = document.getElementById('radius').value;
+  const radius = Number(document.getElementById('radius').value);
   const resultsEl = document.getElementById('nearbyResults');
   const searchBtn = document.getElementById('searchBtn');
 
@@ -89,251 +216,45 @@ async function searchNearbyStations() {
   resultsEl.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p style="margin-top: 16px;">Stations zoeken...</p></div>';
 
   try {
-    const url = `${API_BASE}/stations/cheapest?lat=${userLocation.lat}&lon=${userLocation.lon}&radius_km=${radius}&fuel_type=${fuelType}&limit=5`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`API error: ${res.status}`);
-    const stations = await res.json();
-    displayResults(stations, fuelType, 'nearbyResults', true);
-    
-    try {
-      const latestRes = await fetch(`${API_BASE}/avg-prices/latest`);
-      if (latestRes.ok) {
-        const latestData = await latestRes.json();
-        const cur = latestData.find(i => i.fuel_type === fuelType);
-        const el = document.getElementById('nearbyUpdated');
-        if (cur) {
-          const runRaw = cur.run_timestamp || cur.created_at;
-          const runDate = parseTimestamp(runRaw);
-          el.textContent = `Bijgewerkt ${formatTime(runDate)}`;
-          el.title = runDate ? runDate.toISOString() : '';
-          el.style.display = 'block';
+    // hier komen alleen nog stations binnen die al een geldige prijs voor de gekozen brandstof hebben
+    const allStations = await fetchAnwbStationsAround(userLocation, radius, fuelType);
+
+    // exacte afstand + filter op straal
+    let inRadius = allStations
+      .map(station => {
+        if (station.latitude != null && station.longitude != null) {
+          station.distance_km = computeDistanceKm(
+            userLocation.lat,
+            userLocation.lon,
+            station.latitude,
+            station.longitude
+          );
         } else {
-          el.style.display = 'none';
+          station.distance_km = null;
         }
-      }
-    } catch (e) {
-      console.warn('Could not fetch avg-prices for update label', e);
-    }
+        return station;
+      })
+      .filter(s => s.distance_km != null && s.distance_km <= radius);
+
+    // sorteren op prijs (goedkoopste eerst)
+    inRadius.sort((a, b) => {
+      const pa = getPriceForFuel(a, fuelType) || Number.POSITIVE_INFINITY;
+      const pb = getPriceForFuel(b, fuelType) || Number.POSITIVE_INFINITY;
+      return pa - pb;
+    });
+
+    // max 10 resultaten
+    const limited = inRadius.slice(0, 10);
+
+    displayResults(limited, fuelType, 'nearbyResults', true);
+
   } catch (err) {
     console.error('Search error:', err);
-    showError('nearbyResults', 'Kan geen stations ophalen. Controleer of de API bereikbaar is.');
+    showError('nearbyResults', 'Kan geen stations ophalen. Probeer het later opnieuw.');
   } finally {
     searchBtn.disabled = false;
     searchBtn.textContent = 'Zoek goedkoopste stations';
   }
-}
-
-// ===== ZOEKEN LANDELIJK =====
-async function searchNationwideStations() {
-  const fuelType = document.getElementById('nationwideFuelType').value;
-  const limit = document.getElementById('limitSlider').value;
-  const resultsEl = document.getElementById('nationwideResults');
-  const searchBtn = document.getElementById('nationwideBtn');
-
-  searchBtn.disabled = true;
-  searchBtn.textContent = 'Laden...';
-  resultsEl.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p style="margin-top: 16px;">Beste prijzen ophalen...</p></div>';
-
-  try {
-    const url = `${API_BASE}/stations/cheapest?lat=52.0907&lon=5.1214&radius_km=100&fuel_type=${fuelType}&limit=${limit}&country_iso3=NLD`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`API error: ${res.status}`);
-    const stations = await res.json();
-    displayResults(stations, fuelType, 'nationwideResults', false);
-    
-    try {
-      const latestRes = await fetch(`${API_BASE}/avg-prices/latest?country_iso3=NLD`);
-      if (latestRes.ok) {
-        const latestData = await latestRes.json();
-        const cur = latestData.find(i => i.fuel_type === fuelType);
-        const el = document.getElementById('nationwideUpdated');
-        if (cur) {
-          const runRaw = cur.run_timestamp || cur.created_at;
-          const runDate = parseTimestamp(runRaw);
-          el.textContent = `Bijgewerkt ${formatTime(runDate)}`;
-          el.title = runDate ? runDate.toISOString() : '';
-          el.style.display = 'block';
-        } else {
-          el.style.display = 'none';
-        }
-      }
-    } catch (e) {
-      console.warn('Could not fetch avg-prices for update label', e);
-    }
-  } catch (err) {
-    console.error('Search error:', err);
-    showError('nationwideResults', 'Kan geen stations ophalen. Controleer of de API bereikbaar is.');
-  } finally {
-    searchBtn.disabled = false;
-    searchBtn.textContent = 'Toon goedkoopste landelijk';
-  }
-}
-
-// ===== PRIJSDATA LADEN =====
-async function loadPriceData() {
-  const fuelType = document.getElementById('dataFuelType').value;
-  const loadBtn = document.getElementById('loadDataBtn');
-  const resultsEl = document.getElementById('dataResults');
-  const currentPriceCard = document.getElementById('currentPriceCard');
-  const chartCard = document.getElementById('chartCard');
-
-  loadBtn.disabled = true;
-  loadBtn.textContent = 'Laden...';
-  resultsEl.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p style="margin-top: 16px;">Prijsdata ophalen...</p></div>';
-
-  try {
-    const latestRes = await fetch(`${API_BASE}/avg-prices/latest?country_iso3=NLD`);
-    if (!latestRes.ok) throw new Error(`API error: ${latestRes.status}`);
-    const latestData = await latestRes.json();
-    const currentFuel = latestData.find(item => item.fuel_type === fuelType);
-
-    if (currentFuel) {
-      document.getElementById('currentAvgPrice').textContent = `€ ${currentFuel.avg_price.toFixed(3)}`;
-      document.getElementById('currentPriceMeta').textContent = 
-        `Gebaseerd op ${currentFuel.sample_count} tankstations · ${formatDate(currentFuel.run_timestamp)}`;
-      currentPriceCard.style.display = 'block';
-    }
-
-    const historyRes = await fetch(`${API_BASE}/avg-prices/history?fuel_type=${fuelType}&country_iso3=NLD`);
-    if (!historyRes.ok) throw new Error(`API error: ${historyRes.status}`);
-    const historyData = await historyRes.json();
-
-    if (historyData && historyData.length > 0) {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
-      const recentData = historyData
-        .filter(item => new Date(item.run_timestamp) >= thirtyDaysAgo)
-        .sort((a, b) => new Date(a.run_timestamp) - new Date(b.run_timestamp));
-
-      if (recentData.length > 0) {
-        renderChart(recentData);
-        chartCard.style.display = 'block';
-        resultsEl.innerHTML = '';
-      } else {
-        resultsEl.innerHTML = '<div class="no-results"><div class="no-results-icon">📊</div><h3>Geen recente data</h3><p style="margin-top: 8px;">Er zijn nog geen gegevens van de laatste 30 dagen</p></div>';
-      }
-    } else {
-      resultsEl.innerHTML = '<div class="no-results"><div class="no-results-icon">📊</div><h3>Geen data beschikbaar</h3><p style="margin-top: 8px;">Probeer het later opnieuw</p></div>';
-    }
-
-  } catch (err) {
-    console.error('Data error:', err);
-    showError('dataResults', 'Kan prijsdata niet ophalen. Controleer of de API bereikbaar is.');
-    currentPriceCard.style.display = 'none';
-    chartCard.style.display = 'none';
-  } finally {
-    loadBtn.disabled = false;
-    loadBtn.textContent = 'Laad prijshistorie';
-  }
-}
-
-// ===== CHART RENDEREN =====
-function renderChart(data) {
-  const ctx = document.getElementById('priceChart');
-  
-  if (priceChart) {
-    priceChart.destroy();
-  }
-
-  const dailyData = {};
-  
-  data.forEach(item => {
-    const date = new Date(item.run_timestamp);
-    const dateKey = date.toISOString().split('T')[0];
-    
-    if (!dailyData[dateKey]) {
-      dailyData[dateKey] = {
-        prices: [],
-        date: date
-      };
-    }
-    dailyData[dateKey].prices.push(item.avg_price);
-  });
-
-  const dailyAverages = Object.keys(dailyData)
-    .sort()
-    .map(dateKey => ({
-      date: dailyData[dateKey].date,
-      avgPrice: dailyData[dateKey].prices.reduce((a, b) => a + b, 0) / dailyData[dateKey].prices.length
-    }));
-
-  const labels = dailyAverages.map(item => 
-    item.date.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
-  );
-
-  const prices = dailyAverages.map(item => item.avgPrice);
-
-  priceChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Gemiddelde prijs (€/L)',
-        data: prices,
-        borderColor: '#1e40af',
-        backgroundColor: 'rgba(30, 64, 175, 0.1)',
-        borderWidth: 2,
-        tension: 0.3,
-        fill: true,
-        pointRadius: 3,
-        pointHoverRadius: 5,
-        pointBackgroundColor: '#1e40af',
-        pointBorderColor: '#fff',
-        pointBorderWidth: 2
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: false
-        },
-        tooltip: {
-          backgroundColor: 'rgba(31, 41, 55, 0.95)',
-          padding: 12,
-          titleColor: '#fff',
-          bodyColor: '#fff',
-          cornerRadius: 8,
-          displayColors: false,
-          callbacks: {
-            label: function(context) {
-              return `€ ${context.parsed.y.toFixed(3)} per liter`;
-            }
-          }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: false,
-          ticks: {
-            callback: function(value) {
-              return '€ ' + value.toFixed(3);
-            },
-            font: {
-              size: 11
-            }
-          },
-          grid: {
-            color: 'rgba(0, 0, 0, 0.05)'
-          }
-        },
-        x: {
-          ticks: {
-            font: {
-              size: 11
-            },
-            maxRotation: 45,
-            minRotation: 45
-          },
-          grid: {
-            display: false
-          }
-        }
-      }
-    }
-  });
 }
 
 // ===== GOOGLE MAPS ROUTE URL =====
@@ -359,9 +280,9 @@ function buildDirectionsUrl(origin, destination) {
 function getCountryFlag(countryCode) {
   if (!countryCode) return '';
   const code = countryCode.toUpperCase().trim();
-  
+
   if (code === 'NLD') return '';
-  
+
   const flags = {
     'DEU': '🇩🇪',
     'BEL': '🇧🇪',
@@ -369,7 +290,7 @@ function getCountryFlag(countryCode) {
     'FRA': '🇫🇷',
     'GBR': '🇬🇧',
   };
-  
+
   return flags[code] || '🌍';
 }
 
@@ -388,14 +309,12 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
   }
 
   const html = stations.map((station, index) => {
-    const price = station.latest_prices?.find(p =>
-      p.fuel_type === fuelType || (p.fuel_name && p.fuel_name.includes(fuelType))
-    );
+    const priceVal = getPriceForFuel(station, fuelType);
+    const hasPrice = priceVal !== null;
 
-    const priceValue =
-      price && price.value_eur_per_l
-        ? `€ ${price.value_eur_per_l.toFixed(3)}`
-        : 'Prijs onbekend';
+    const priceValue = hasPrice
+      ? `€ ${priceVal.toFixed(3)}`
+      : 'Prijs onbekend';
 
     const address = [station.street_address, station.postal_code, station.city]
       .filter(Boolean)
@@ -405,14 +324,12 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
       ? `<span class="station-distance">📍 ${Number(station.distance_km).toFixed(1)} km</span>`
       : '';
 
-    // vlag alleen tonen in de "dichtbij"-tab (showDistance === true)
     const countryFlag = showDistance ? getCountryFlag(station.iso3_country_code) : '';
 
     const flagBadge = countryFlag
       ? `<span class="country-flag" title="${station.country || 'Buitenland'}">${countryFlag}</span>`
       : '';
 
-    // gebruik gewoon de titel zoals hij is aangeleverd
     const titleWithFlag = flagBadge
       ? `${station.title || 'Onbekend station'} ${flagBadge}`
       : (station.title || 'Onbekend station');
@@ -439,15 +356,15 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
           <div class="station-name">${titleWithFlag}</div>
           <div class="station-price">
             ${priceValue}
-            ${price ? '<span class="price-unit">/L</span>' : ''}
+            ${hasPrice ? '<span class="price-unit">/L</span>' : ''}
           </div>
         </div>
         <div class="station-address">${address || 'Adres onbekend'}</div>
         <div class="station-footer">
           ${distance}
           ${routeUrl
-            ? `<a class="route-btn" href="${routeUrl}" target="_blank" rel="noopener" aria-label="Route naar ${station.title || 'tankstation'}">🧭 Route</a>`
-            : ''}
+        ? `<a class="route-btn" href="${routeUrl}" target="_blank" rel="noopener" aria-label="Route naar ${station.title || 'tankstation'}">🧭 Route</a>`
+        : ''}
         </div>
       </div>`;
   }).join('');
@@ -459,34 +376,6 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
 function showError(targetElementId, message) {
   const resultsEl = document.getElementById(targetElementId);
   resultsEl.innerHTML = `<div class="error-message">${message}</div>`;
-}
-
-// ===== DATUM FORMATTEREN =====
-function parseTimestamp(ts) {
-  if (!ts) return null;
-  if (ts instanceof Date) return ts;
-  if (/[zZ]$|[+\-]\d{2}:?\d{2}$/.test(ts)) {
-    return new Date(ts);
-  }
-  return new Date(ts + 'Z');
-}
-
-function formatDate(dateInput) {
-  const date = parseTimestamp(dateInput);
-  if (!date || isNaN(date.getTime())) return 'Onbekende tijd';
-  return date.toLocaleDateString('nl-NL', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
-
-function formatTime(dateInput) {
-  const date = parseTimestamp(dateInput);
-  if (!date || isNaN(date.getTime())) return 'Onbekend';
-  return date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
 
 // ===== MANUAL LOCATION =====
@@ -510,7 +399,7 @@ function setupManualLocation() {
       return;
     }
     try {
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&addressdetails=1&limit=6`;
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&addressdetails=1&limit=6`;
       const res = await fetch(url, { headers: { 'Accept-Language': 'nl' } });
       if (!res.ok) throw new Error('geocode error');
       const items = await res.json();
@@ -566,10 +455,7 @@ function selectManualLocation({ lat, lon, display }) {
   const input = document.getElementById('manualLocationInput');
   if (input) input.value = display;
 
-  const activeTab = document.querySelector('.tab.active');
-  if (activeTab && activeTab.dataset.tab === 'nearby') {
-    searchNearbyStations();
-  }
+  searchNearbyStations();
 }
 
 function escapeHtml(str) {

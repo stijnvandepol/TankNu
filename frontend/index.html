@@ -1,20 +1,15 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-B7NXQWZG58"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-
-    gtag('config', 'G-B7NXQWZG58');
-  </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
-  <meta name="description" content="Vind de goedkoopste brandstofprijzen in de buurt in heel Nederland. Euro 95, Euro 98, Diesel en LPG."/>
+  <meta name="description" content="Vind snel de goedkoopste tankstations bij jou in de buurt. Vergelijk actuele brandstofprijzen voor Euro 95 (E10), Euro 98 (E5), Diesel en LPG en navigeer direct."/>
   <title>TankNu - Goedkoopste Tankstations</title>
+  <meta name="application-name" content="TankNu" />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="icon" href="assets/favicon.svg" sizes="any">
+  <link rel="shortcut icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="mask-icon" href="assets/favicon.svg" color="#1e40af">
   <link rel="stylesheet" href="assets/css/style.css" />
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1e40af">
@@ -34,23 +29,8 @@
         </button>
       </div>
       <div class="logo-tagline tagline">
-        Altijd op zoek naar de goedkoopste tankstations
+        Altijd op zoek naar de goedkoopste tankstations in de buurt
       </div>
-    </div>
-
-    <div class="tabs">
-      <button class="tab active" data-tab="nearby">
-        <span class="tab-icon">📍</span>
-        <span class="tab-label">In de buurt</span>
-      </button>
-      <button class="tab" data-tab="nationwide">
-        <span class="tab-icon">🏆</span>
-        <span class="tab-label">Landelijk</span>
-      </button>
-      <button class="tab" data-tab="data">
-        <span class="tab-icon">📊</span>
-        <span class="tab-label">Prijsdata</span>
-      </button>
     </div>
 
     <div id="nearby-tab" class="tab-content active">
@@ -94,71 +74,6 @@
       <div id="nearbyResults"></div>
     </div>
 
-    <div id="nationwide-tab" class="tab-content">
-      <div class="info-box">
-        <strong>Top landelijk:</strong> De absolute goedkoopste tankstations in heel Nederland.
-      </div>
-
-      <div class="card">
-        <div class="form-group">
-          <label for="nationwideFuelType">Brandstoftype</label>
-          <select id="nationwideFuelType">
-            <option value="EURO95">Euro 95 (E10)</option>
-            <option value="EURO98">Euro 98 (E5)</option>
-            <option value="DIESEL">Diesel (B7)</option>
-            <option value="AUTOGAS">Autogas (LPG)</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="limitSlider">
-            Aantal resultaten
-            <span class="slider-value" id="limitValue">20</span>
-          </label>
-          <input type="range" id="limitSlider" min="10" max="50" value="20" step="5">
-        </div>
-
-        <button class="btn btn-primary" id="nationwideBtn">
-          Toon goedkoopste landelijk
-        </button>
-        <p id="nationwideUpdated" class="updated-text"></p>
-      </div>
-
-      <div id="nationwideResults"></div>
-    </div>
-
-    <div id="data-tab" class="tab-content">
-      <div class="card">
-        <div class="form-group">
-          <label for="dataFuelType">Brandstoftype</label>
-          <select id="dataFuelType">
-            <option value="EURO95">Euro 95 (E10)</option>
-            <option value="EURO98">Euro 98 (E5)</option>
-            <option value="DIESEL">Diesel (B7)</option>
-            <option value="AUTOGAS">Autogas (LPG)</option>
-          </select>
-        </div>
-
-        <button class="btn btn-primary" id="loadDataBtn">
-          Laad prijshistorie
-        </button>
-      </div>
-
-      <div id="currentPriceCard" class="card" style="display: none;">
-        <h3 class="card-title">Huidige gemiddelde prijs</h3>
-        <div class="current-price-display">
-          <div class="price-large" id="currentAvgPrice">-</div>
-          <div class="price-meta" id="currentPriceMeta">-</div>
-        </div>
-      </div>
-
-      <div id="chartCard" class="card" style="display: none;">
-        <h3 class="card-title">Prijsontwikkeling (laatste 30 dagen)</h3>
-        <canvas id="priceChart"></canvas>
-      </div>
-
-      <div id="dataResults"></div>
-    </div>
   </div>
 
   <div class="help-overlay" id="helpOverlay" aria-hidden="true">
@@ -170,16 +85,15 @@
       <div class="help-content">
         <h2 class="help-title">Wat is TankNu.nl?</h2>
         <p class="help-text">
-          TankNu.nl laat je direct zien waar je het goedkoopst kunt tanken. 
-          In de buurt of landelijk. Je kiest je brandstof, 
-          geeft een straal of een maximum aantal resultaten op en krijgt dan een lijst met tankstations inclusief prijs per liter, afstand en meteen een routeknop om er naartoe te navigeren.
+          TankNu.nl laat je direct zien waar je het goedkoopst kunt tanken
+          in jouw omgeving. Je kiest je brandstof, stelt een straal in en krijgt
+          een lijst met tankstations inclusief prijs per liter, afstand en een
+          routeknop om er meteen naartoe te navigeren.
         </p>
 
         <h3 class="help-section">Hoe gebruik ik het?</h3>
         <ul class="help-list">
-          <li><strong>Bij mij</strong>: zoekt de goedkoopste stations in jouw buurt (op basis van je locatie of handmatig ingevoerde plaats).</li>
-          <li><strong>Landelijk</strong>: toont de absolute goedkoopste tankstations in NL, voor het geselecteerde type brandstof.</li>
-          <li><strong>Prijsdata</strong>: laat de gemiddelde landelijke prijs zien en een grafiek van de prijsontwikkeling van de afgelopen 30 dagen.</li>
+          <li><strong>In de buurt</strong>: zoekt de goedkoopste stations rond jouw locatie (op basis van je GPS of handmatig ingevoerde plaats).</li>
         </ul>
 
         <h3 class="help-section">App op je beginscherm zetten</h3>
@@ -210,7 +124,7 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Chart.js verwijderd, alleen je eigen app.js blijft over -->
   <script src="assets/js/app.js" defer></script>
 </body>
 </html>

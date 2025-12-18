@@ -100,6 +100,27 @@
         <p id="nearbyUpdated" class="updated-text"></p>
       </div>
 
+      <!-- Filter sectie -->
+      <div class="card filter-section" id="filterSection" style="display: none;">
+        <div class="form-group">
+          <select id="brandFilter">
+            <option value="">Alle merken</option>
+            <!-- Dynamisch gevuld via JavaScript -->
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="filterOpenOnly" />
+            Alleen open tankstations
+          </label>
+        </div>
+
+        <button class="btn btn-secondary" id="resetFiltersBtn">
+          Reset filters
+        </button>
+      </div>
+
       <div id="nearbyResults"></div>
     </div>
 

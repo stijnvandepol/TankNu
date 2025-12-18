@@ -3,6 +3,11 @@ const MIN_PRICE_EUR_PER_L = 0.10;
 const ANWB_API_KEY = '';
 
 let userLocation = null;
+let allStationsCache = []; // Cache voor alle opgehaalde stations
+let activeFilters = {
+  selectedBrand: '',
+  openOnly: false
+};
 
 // ===== SLIDERS =====
 document.addEventListener('input', (e) => {
@@ -47,6 +52,26 @@ window.addEventListener('load', () => {
 document.addEventListener('click', async (e) => {
   if (e.target.id === 'searchBtn' || e.target.closest('#searchBtn')) {
     await searchNearbyStations();
+  }
+  
+  // Reset filters button
+  if (e.target.id === 'resetFiltersBtn') {
+    resetFilters();
+  }
+});
+
+// Filter listeners
+document.addEventListener('change', (e) => {
+  // Brand dropdown
+  if (e.target.id === 'brandFilter') {
+    activeFilters.selectedBrand = e.target.value;
+    applyFilters();
+  }
+  
+  // Open only checkbox
+  if (e.target.id === 'filterOpenOnly') {
+    activeFilters.openOnly = e.target.checked;
+    applyFilters();
   }
 });
 
@@ -107,6 +132,9 @@ function mapAnwbPoiToStation(poi, center) {
     fuel_name: p.fuelName || '',
     value_eur_per_l: typeof p.value === 'number' ? p.value : null
   }));
+  
+  // Opening hours van de API
+  const openingHours = Array.isArray(poi.openingHours) ? poi.openingHours : null;
 
   let distance_km = null;
   if (center && typeof lat === 'number' && typeof lon === 'number') {
@@ -124,6 +152,7 @@ function mapAnwbPoiToStation(poi, center) {
     country,
     iso3_country_code,
     latest_prices,
+    openingHours,
     distance_km
   };
 }
@@ -210,10 +239,12 @@ async function searchNearbyStations() {
   const radius = Number(document.getElementById('radius').value);
   const resultsEl = document.getElementById('nearbyResults');
   const searchBtn = document.getElementById('searchBtn');
+  const filterSection = document.getElementById('filterSection');
 
   searchBtn.disabled = true;
   searchBtn.textContent = 'Zoeken...';
   resultsEl.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p style="margin-top: 16px;">Stations zoeken...</p></div>';
+  filterSection.style.display = 'none';
 
   try {
     // hier komen alleen nog stations binnen die al een geldige prijs voor de gekozen brandstof hebben
@@ -243,10 +274,17 @@ async function searchNearbyStations() {
       return pa - pb;
     });
 
-    // max 10 resultaten
-    const limited = inRadius.slice(0, 10);
+    // Bewaar alle stations in cache
+    allStationsCache = inRadius;
 
-    displayResults(limited, fuelType, 'nearbyResults', true);
+    // Toon filter sectie en bouw brand filters
+    if (inRadius.length > 0) {
+      buildBrandFilters(inRadius);
+      filterSection.style.display = 'block';
+    }
+
+    // Toon gefilterde resultaten
+    applyFilters();
 
   } catch (err) {
     console.error('Search error:', err);
@@ -255,6 +293,136 @@ async function searchNearbyStations() {
     searchBtn.disabled = false;
     searchBtn.textContent = 'Zoek goedkoopste stations';
   }
+}
+
+// ===== FILTER FUNCTIES =====
+function extractBrandName(stationTitle) {
+  const title = (stationTitle || '').trim();
+  
+  // Bekende merken met speciale behandeling
+  const titleLower = title.toLowerCase();
+  const specialBrands = {
+    'van kessel': 'Van Kessel',
+    't-energy': 'T-Energy',
+    'tank-stop': 'Tank-stop',
+    'cng express': 'CNG Express'
+  };
+  
+  // Check op speciale merken (met spaties of speciale tekens)
+  for (const [key, value] of Object.entries(specialBrands)) {
+    if (titleLower.includes(key)) {
+      return value;
+    }
+  }
+  
+  // Haal het eerste woord als merknaam (alles voor spatie, haakje of andere scheiding)
+  const match = title.match(/^([A-Za-z0-9]+)/);
+  if (match && match[1]) {
+    const brand = match[1];
+    // Zorg voor correcte capitalisatie
+    return brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase();
+  }
+  
+  return 'Overig';
+}
+
+function buildBrandFilters(stations) {
+  const brandSelect = document.getElementById('brandFilter');
+  if (!brandSelect) return;
+  
+  // Extract unieke merken
+  const brandSet = new Set();
+  stations.forEach(station => {
+    const brand = extractBrandName(station.title);
+    brandSet.add(brand);
+  });
+  
+  const sortedBrands = Array.from(brandSet).sort();
+  
+  // Vul dropdown met opties (behoud "Alle merken" optie)
+  const options = sortedBrands.map(brand => 
+    `<option value="${brand}">${brand}</option>`
+  ).join('');
+  
+  brandSelect.innerHTML = '<option value="">Alle merken</option>' + options;
+}
+
+function isStationOpen(station) {
+  // Simpele check: als er openingHours is en het is een array, neem aan dat het open is
+  // Voor een betere implementatie zou je de huidige tijd moeten checken tegen openingHours
+  if (!station.openingHours || !Array.isArray(station.openingHours)) {
+    return true; // Geen info = toon wel
+  }
+  
+  // Check of er 24/7 opening is
+  const has24x7 = station.openingHours.some(hours => {
+    return hours.opens === '00:00' && hours.closes === '24:00';
+  });
+  
+  if (has24x7) return true;
+  
+  // Voor nu: simpele check op basis van dag
+  const now = new Date();
+  const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+  const currentDay = dayNames[now.getDay()];
+  const currentTime = now.getHours() * 60 + now.getMinutes();
+  
+  const todayHours = station.openingHours.find(h => 
+    h.dayOfWeek && h.dayOfWeek.includes(currentDay)
+  );
+  
+  if (!todayHours) return false;
+  
+  const openTime = parseTimeString(todayHours.opens);
+  const closeTime = parseTimeString(todayHours.closes);
+  
+  return currentTime >= openTime && currentTime <= closeTime;
+}
+
+function parseTimeString(timeStr) {
+  if (!timeStr) return 0;
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function applyFilters() {
+  const fuelType = document.getElementById('fuelType').value;
+  
+  let filtered = allStationsCache.filter(station => {
+    // Brand filter
+    if (activeFilters.selectedBrand) {
+      const brand = extractBrandName(station.title);
+      if (brand !== activeFilters.selectedBrand) {
+        return false;
+      }
+    }
+    
+    // Open only filter
+    if (activeFilters.openOnly && !isStationOpen(station)) {
+      return false;
+    }
+    
+    return true;
+  });
+  
+  // Limiteer tot 10 resultaten
+  const limited = filtered.slice(0, 10);
+  
+  displayResults(limited, fuelType, 'nearbyResults', true);
+}
+
+function resetFilters() {
+  // Reset filter state
+  activeFilters.selectedBrand = '';
+  activeFilters.openOnly = false;
+  
+  // Reset UI
+  const brandFilter = document.getElementById('brandFilter');
+  if (brandFilter) brandFilter.value = '';
+  document.getElementById('filterOpenOnly').checked = false;
+  
+  // Herlaad resultaten
+  applyFilters();
 }
 
 // ===== GOOGLE MAPS ROUTE URL =====
@@ -329,6 +497,12 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
     const flagBadge = countryFlag
       ? `<span class="country-flag" title="${station.country || 'Buitenland'}">${countryFlag}</span>`
       : '';
+      
+    // Check of station open is
+    const stationOpen = isStationOpen(station);
+    const openBadge = stationOpen 
+      ? '<span class="open-badge open">🟢 Open</span>'
+      : '<span class="open-badge closed">🔴 Gesloten</span>';
 
     const titleWithFlag = flagBadge
       ? `${station.title || 'Onbekend station'} ${flagBadge}`
@@ -353,7 +527,7 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
       <div class="station-card">
         ${rankBadge}
         <div class="station-header">
-          <div class="station-name">${titleWithFlag}</div>
+          <div class="station-name">${titleWithFlag} ${openBadge}</div>
           <div class="station-price">
             ${priceValue}
             ${hasPrice ? '<span class="price-unit">/L</span>' : ''}

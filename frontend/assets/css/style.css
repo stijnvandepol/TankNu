@@ -1012,3 +1012,56 @@ input[type="range"]::-moz-range-thumb:active {
     outline: 0;
   }
 }
+
+/* =========================================================
+   FILTER SECTION
+========================================================= */
+
+.filter-section {
+  margin-top: 16px;
+  padding: 12px !important;
+  border: 2px solid var(--primary-light);
+  background: linear-gradient(to bottom, white, var(--gray-50));
+}
+
+.filter-section .form-group {
+  margin-bottom: 10px;
+}
+
+.filter-section .form-group:last-of-type {
+  margin-bottom: 8px;
+}
+
+.btn-secondary {
+  background: var(--gray-200);
+  color: var(--gray-800);
+  margin-top: 12px;
+}
+
+.btn-secondary:hover {
+  background: var(--gray-300);
+  transform: translateY(-1px);
+}
+
+.btn-secondary:active {
+  transform: translateY(0);
+}
+
+.open-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+.open-badge.open {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.open-badge.closed {
+  background: #fee2e2;
+  color: #991b1b;
+}

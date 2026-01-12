@@ -38,5 +38,5 @@ jobs:
 
         docker pull stijn0vp/tanknu:latest
 
-        docker run --restart always -d -p 8081:80 --name tanknu stijn0vp/tanknu:latest
+        docker run --restart always -d -p 8081:8080 --name tanknu stijn0vp/tanknu:latest
         docker ps -a

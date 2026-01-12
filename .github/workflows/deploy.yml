@@ -1,0 +1,41 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Log in to Docker Hub
+      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+    - name: Build the Docker image
+      run: docker build -t stijn0vp/tanknu:latest .
+
+    - name: Push Docker image to Docker Hub
+      run: docker push stijn0vp/tanknu:latest
+
+  deploy:
+    runs-on: [self-hosted]
+    needs: build 
+
+    steps:
+    - name: Deploy container
+      run: |
+        docker ps -q -f name=tanknu && docker stop tanknu || echo "Container tanknu is not running"
+
+        docker ps -a -q -f name=tanknu && docker rm tanknu || echo "Container tanknu does not exist"
+
+        docker images -q stijn0vp/tanknu:latest && docker image rm stijn0vp/tanknu:latest || echo "Image stijn0vp/tanknu:latest does not exist locally"
+
+        docker pull stijn0vp/tanknu:latest
+
+        docker run --restart always -d -p 8081:80 --name tanknu stijn0vp/tanknu:latest
+        docker ps -a

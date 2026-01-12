@@ -2,7 +2,7 @@
 <img alt="deviceframes" src="https://github.com/user-attachments/assets/9e30c88b-5bcd-49ad-ab81-6eb22ec034d6" width="280" align="right" />
 Lichte web-app om brandstofprijzen in (en rond) Nederland direct uit de publieke ANWB API op te vragen en overzichtelijk te tonen. Geen eigen database, geen backend die data bewaart: de browser vraagt de API aan en toont de resultaten.
 
-Het idee is simpel: één frontend die je locatie gebruikt, een verzoek naar de ANWB API doet en je laat zien waar je het goedkoopst kunt tanken – inclusief routeknop en ondersteuning voor verschillende brandstoftypes.
+Het idee is simpel: één frontend die je locatie gebruikt, een verzoek naar de ANWB API doet en je laat zien waar je het goedkoopst kunt tanken – inclusief routeknop en ondersteuning voor verschillende brandstoftypes
 
 
 ---

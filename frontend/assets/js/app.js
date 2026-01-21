@@ -1,4 +1,4 @@
-const BRANDSTOF_API_BASE = 'https://api.tanknu.nl/ajax/markers';
+const BRANDSTOF_API_BASE = 'https://api.tanknu.nl';
 const MIN_PRICE_EUR_PER_L = 0.10;
 
 let userLocation = null;

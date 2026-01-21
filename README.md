@@ -21,17 +21,12 @@ Deze applicatie doet eigenlijk maar een paar dingen, maar dan goed:
 
 Je hebt **Docker Desktop** nodig. Of een andere Docker engine, maakt niet uit.
 
-**Stap 1:** Clone de repository
-
 ```bash
-git clone https://github.com/stijnvandepol/TankNu.git
-cd Tanknu-lite
-```
-
-**Stap 3:** Start de docker stack
-
-```bash
-docker compose up --build
+docker run -d \
+  --name tanknu-app \
+  -p 8081:8080 \
+  --restart unless-stopped \
+  stijn0vp/tanknu-app:latest
 ```
 
 ## 🔐 Privacy

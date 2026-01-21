@@ -52,26 +52,6 @@ document.addEventListener('click', async (e) => {
   if (e.target.id === 'searchBtn' || e.target.closest('#searchBtn')) {
     await searchNearbyStations();
   }
-  
-  // Reset filters button
-  if (e.target.id === 'resetFiltersBtn') {
-    resetFilters();
-  }
-});
-
-// Filter listeners
-document.addEventListener('change', (e) => {
-  // Brand dropdown
-  if (e.target.id === 'brandFilter') {
-    activeFilters.selectedBrand = e.target.value;
-    applyFilters();
-  }
-  
-  // Open only checkbox
-  if (e.target.id === 'filterOpenOnly') {
-    activeFilters.openOnly = e.target.checked;
-    applyFilters();
-  }
 });
 
 // ===== HULPFUNCTIES VOOR AFSTAND EN BOUNDING BOX =====
@@ -132,23 +112,14 @@ function mapBrandstofApiToStation(item, center) {
   const brand = station.chain || 'Onbekend';
   
   // Extract price info from fuelPrice
-  const fuelType = item.fuelType || fuelPrice?.type || '';
+  // Gebruik fuelPrice.tech omdat het al "euro95" format is (zonder spaties!)
+  // fuelPrice.type is "euro 95" (met spatie) dus niet geschikt
+  const fuelTypeRaw = fuelPrice?.tech || '';
   const priceStr = fuelPrice?.prijs || '0';
   const priceValue = parseFloat(priceStr.replace(',', '.')) || null;
   
-  // Normaliseer brandstoftype naar Nederlandse benaming
-  const fuelTypeNormalization = {
-    'euro 95': 'EURO95',
-    'euro95': 'EURO95',
-    'euro 98': 'EURO98',
-    'euro98': 'EURO98',
-    'diesel': 'DIESEL',
-    'lpg': 'AUTOGAS',
-    'autogas': 'AUTOGAS',
-    'cng': 'CNG'
-  };
-  
-  const normalizedFuelType = fuelTypeNormalization[fuelType.toLowerCase()] || fuelType.toUpperCase();
+  // Normaliseer brandstoftype - tech field is al correct
+  const normalizedFuelType = fuelTypeRaw.toLowerCase();
   
   // Build latest_prices array (dezelfde structuur als voorheen)
   const latest_prices = priceValue !== null ? [{
@@ -187,21 +158,11 @@ function mapBrandstofApiToStation(item, center) {
 function getPriceForFuel(station, fuelType) {
   if (!station || !Array.isArray(station.latest_prices)) return null;
   
-  // Map input fuelType naar de genormaliseerde versie
-  const fuelTypeMap = {
-    'EURO95': 'EURO95',
-    'EURO 95': 'EURO95',
-    'EURO98': 'EURO98',
-    'EURO 98': 'EURO98',
-    'DIESEL': 'DIESEL',
-    'AUTOGAS': 'AUTOGAS',
-    'LPG': 'AUTOGAS'
-  };
-  
-  const normalizedFuel = fuelTypeMap[(fuelType || 'EURO95').toUpperCase()] || 'EURO95';
+  // Match fuelType (lowercase) against stored fuel_type
+  const normalizedFuel = (fuelType || 'euro95').toString().toLowerCase();
 
   const priceObj = station.latest_prices.find(p => {
-    const pType = (p.fuel_type || '').toString().toUpperCase();
+    const pType = (p.fuel_type || '').toString().toLowerCase();
     return pType === normalizedFuel;
   });
 
@@ -216,20 +177,8 @@ async function fetchBrandstofStationsAround(center, radiusKm, fuelType) {
 
   const bbox = buildBoundingBox(center.lat, center.lon, radiusKm);
 
-  // Map Nederlandse brandstoftype naamgeving naar API naming
-  const fuelTypeMap = {
-    'EURO95': 'euro95',
-    'EURO 95': 'euro95',
-    'EURO98': 'euro98',
-    'EURO 98': 'euro98',
-    'DIESEL': 'diesel',
-    'AUTOGAS': 'lpg',
-    'LPG': 'lpg',
-    'CNG': 'cng'
-  };
-  
-  const normalizedFuel = (fuelType || 'EURO95').toString().toUpperCase();
-  const apiFuelType = fuelTypeMap[normalizedFuel] || 'euro95';
+  // Brandstoftype wordt direct naar API gestuurd (alle waarden zijn al lowercase)
+  const apiFuelType = (fuelType || 'euro95').toString().toLowerCase();
 
   const params = new URLSearchParams();
   params.set('pageType', 'map');
@@ -281,18 +230,14 @@ async function searchNearbyStations() {
   const radius = Number(document.getElementById('radius').value);
   const resultsEl = document.getElementById('nearbyResults');
   const searchBtn = document.getElementById('searchBtn');
-  const filterSection = document.getElementById('filterSection');
 
   searchBtn.disabled = true;
   searchBtn.textContent = 'Zoeken...';
   resultsEl.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p style="margin-top: 16px;">Stations zoeken...</p></div>';
-  filterSection.style.display = 'none';
 
   try {
-    // hier komen alleen nog stations binnen die al een geldige prijs voor de gekozen brandstof hebben
     const allStations = await fetchBrandstofStationsAround(userLocation, radius, fuelType);
 
-    // exacte afstand + filter op straal
     let inRadius = allStations
       .map(station => {
         if (station.latitude != null && station.longitude != null) {
@@ -309,24 +254,15 @@ async function searchNearbyStations() {
       })
       .filter(s => s.distance_km != null && s.distance_km <= radius);
 
-    // sorteren op prijs (goedkoopste eerst)
     inRadius.sort((a, b) => {
       const pa = getPriceForFuel(a, fuelType) || Number.POSITIVE_INFINITY;
       const pb = getPriceForFuel(b, fuelType) || Number.POSITIVE_INFINITY;
       return pa - pb;
     });
 
-    // Bewaar alle stations in cache
-    allStationsCache = inRadius;
-
-    // Toon filter sectie en bouw brand filters
-    if (inRadius.length > 0) {
-      buildBrandFilters(inRadius);
-      filterSection.style.display = 'block';
-    }
-
-    // Toon gefilterde resultaten
-    applyFilters();
+    // Toon top 10 resultaten
+    const limited = inRadius.slice(0, 10);
+    displayResults(limited, fuelType, 'nearbyResults', true);
 
   } catch (err) {
     console.error('Search error:', err);
@@ -335,107 +271,6 @@ async function searchNearbyStations() {
     searchBtn.disabled = false;
     searchBtn.textContent = 'Zoek goedkoopste stations';
   }
-}
-
-// ===== FILTER FUNCTIES =====
-function extractBrandName(station) {
-  // De nieuwe API heeft 'chain' field met merknaam
-  if (station.chain) {
-    const chain = (station.chain || '').trim();
-    // Zorg voor correcte capitalisatie
-    return chain.charAt(0).toUpperCase() + chain.slice(1).toLowerCase();
-  }
-  
-  // Fallback op title (voor backward compatibility)
-  const title = (station.title || '').trim();
-  
-  // Bekende merken met speciale behandeling
-  const titleLower = title.toLowerCase();
-  const specialBrands = {
-    'van kessel': 'Van Kessel',
-    't-energy': 'T-Energy',
-    'tank-stop': 'Tank-stop',
-    'cng express': 'CNG Express'
-  };
-  
-  // Check op speciale merken (met spaties of speciale tekens)
-  for (const [key, value] of Object.entries(specialBrands)) {
-    if (titleLower.includes(key)) {
-      return value;
-    }
-  }
-  
-  // Haal het eerste woord als merknaam (alles voor spatie, haakje of andere scheiding)
-  const match = title.match(/^([A-Za-z0-9]+)/);
-  if (match && match[1]) {
-    const brand = match[1];
-    // Zorg voor correcte capitalisatie
-    return brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase();
-  }
-  
-  return 'Overig';
-}
-
-function buildBrandFilters(stations) {
-  const brandSelect = document.getElementById('brandFilter');
-  if (!brandSelect) return;
-  
-  // Extract unieke merken
-  const brandSet = new Set();
-  stations.forEach(station => {
-    const brand = extractBrandName(station);
-    brandSet.add(brand);
-  });
-  
-  const sortedBrands = Array.from(brandSet).sort();
-  
-  // Vul dropdown met opties (behoud "Alle merken" optie)
-  const options = sortedBrands.map(brand => 
-    `<option value="${brand}">${brand}</option>`
-  ).join('');
-  
-  brandSelect.innerHTML = '<option value="">Alle merken</option>' + options;
-}
-
-function isStationOpen(station) {
-  // De nieuwe API heeft geen openingsuren, dus we nemen aan dat stations altijd open zijn
-  // Dit kan later verbeterd worden met externe data
-  return true;
-}
-
-function applyFilters() {
-  const fuelType = document.getElementById('fuelType').value;
-  
-  let filtered = allStationsCache.filter(station => {
-    // Brand filter
-    if (activeFilters.selectedBrand) {
-      const brand = extractBrandName(station);
-      if (brand !== activeFilters.selectedBrand) {
-        return false;
-      }
-    }
-    
-    return true;
-  });
-  
-  // Limiteer tot 10 resultaten
-  const limited = filtered.slice(0, 10);
-  
-  displayResults(limited, fuelType, 'nearbyResults', true);
-}
-
-function resetFilters() {
-  // Reset filter state
-  activeFilters.selectedBrand = '';
-  activeFilters.openOnly = false;
-  
-  // Reset UI
-  const brandFilter = document.getElementById('brandFilter');
-  if (brandFilter) brandFilter.value = '';
-  document.getElementById('filterOpenOnly').checked = false;
-  
-  // Herlaad resultaten
-  applyFilters();
 }
 
 // ===== GOOGLE MAPS ROUTE URL =====
@@ -510,12 +345,6 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
     const flagBadge = countryFlag
       ? `<span class="country-flag" title="${station.country || 'Buitenland'}">${countryFlag}</span>`
       : '';
-      
-    // Check of station open is
-    const stationOpen = isStationOpen(station);
-    const openBadge = stationOpen 
-      ? '<span class="open-badge open">🟢 Open</span>'
-      : '<span class="open-badge closed">🔴 Gesloten</span>';
 
     const titleWithFlag = flagBadge
       ? `${station.chain || station.title || 'Onbekend station'} ${flagBadge}`
@@ -540,7 +369,7 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
       <div class="station-card">
         ${rankBadge}
         <div class="station-header">
-          <div class="station-name">${titleWithFlag} ${openBadge}</div>
+          <div class="station-name">${titleWithFlag}</div>
           <div class="station-price">
             ${priceValue}
             ${hasPrice ? '<span class="price-unit">/L</span>' : ''}

@@ -1,6 +1,5 @@
-const ANWB_API_BASE = 'https://api.tanknu.nl/routing/points-of-interest/v3/all';
+const BRANDSTOF_API_BASE = 'https://www.brandstof-zoeker.nl/ajax/markers';
 const MIN_PRICE_EUR_PER_L = 0.10;
-const ANWB_API_KEY = '';
 
 let userLocation = null;
 let allStationsCache = []; // Cache voor alle opgehaalde stations
@@ -113,83 +112,134 @@ function buildBoundingBox(lat, lon, radiusKm) {
   };
 }
 
-// ===== ANWB-API MAPPING =====
-function mapAnwbPoiToStation(poi, center) {
-  const coords = poi.coordinates || {};
-  const lat = coords.latitude;
-  const lon = coords.longitude;
-
-  const addr = poi.address || {};
-  const street = addr.streetAddress || '';
-  const postal_code = addr.postalCode || '';
-  const city = addr.city || '';
-  const country = addr.country || '';
-  const iso3_country_code = (addr.iso3CountryCode || '').toString().toUpperCase();
-
-  const prices = Array.isArray(poi.prices) ? poi.prices : [];
-  const latest_prices = prices.map(p => ({
-    fuel_type: (p.fuelType || '').toString().toUpperCase(),
-    fuel_name: p.fuelName || '',
-    value_eur_per_l: typeof p.value === 'number' ? p.value : null
-  }));
+// ===== BRANDSTOF API MAPPING =====
+function mapBrandstofApiToStation(item, center) {
+  // De nieuwe API geeft een ander formaat terug
+  // item heeft: id, station {...}, fuelPrice {...}
   
-  // Opening hours van de API
-  const openingHours = Array.isArray(poi.openingHours) ? poi.openingHours : null;
-
+  if (!item || !item.station) return null;
+  
+  const station = item.station;
+  const fuelPrice = item.fuelPrice;
+  
+  const lat = station.latitude;
+  const lon = station.longitude;
+  
+  // Extract address parts
+  const street = station.adres || '';
+  const postal_code = station.postcode || '';
+  const city = station.plaats || '';
+  const brand = station.chain || 'Onbekend';
+  
+  // Extract price info from fuelPrice
+  const fuelType = item.fuelType || fuelPrice?.type || '';
+  const priceStr = fuelPrice?.prijs || '0';
+  const priceValue = parseFloat(priceStr.replace(',', '.')) || null;
+  
+  // Normaliseer brandstoftype naar Nederlandse benaming
+  const fuelTypeNormalization = {
+    'euro 95': 'EURO95',
+    'euro95': 'EURO95',
+    'euro 98': 'EURO98',
+    'euro98': 'EURO98',
+    'diesel': 'DIESEL',
+    'lpg': 'AUTOGAS',
+    'autogas': 'AUTOGAS',
+    'cng': 'CNG'
+  };
+  
+  const normalizedFuelType = fuelTypeNormalization[fuelType.toLowerCase()] || fuelType.toUpperCase();
+  
+  // Build latest_prices array (dezelfde structuur als voorheen)
+  const latest_prices = priceValue !== null ? [{
+    fuel_type: normalizedFuelType,
+    fuel_name: fuelType,
+    value_eur_per_l: priceValue
+  }] : [];
+  
   let distance_km = null;
   if (center && typeof lat === 'number' && typeof lon === 'number') {
     distance_km = computeDistanceKm(center.lat, center.lon, lat, lon);
   }
-
+  
+  // Datum info
+  const datum = fuelPrice?.datum || '';
+  
   return {
-    id: poi.id || null,
-    title: poi.title || 'Onbekend station',
+    id: station.id || item.id || null,
+    title: brand,
     latitude: lat,
     longitude: lon,
     street_address: street,
     postal_code,
     city,
-    country,
-    iso3_country_code,
+    country: 'Nederland',
+    iso3_country_code: 'NLD',
     latest_prices,
-    openingHours,
-    distance_km
+    openingHours: null, // Nieuwe API heeft geen openingsuren
+    distance_km,
+    datum,
+    chain: brand
   };
 }
 
 // ===== BRANDSTOFPRIJS =====
 function getPriceForFuel(station, fuelType) {
   if (!station || !Array.isArray(station.latest_prices)) return null;
-  const normalizedFuel = (fuelType || '').toString().toUpperCase();
+  
+  // Map input fuelType naar de genormaliseerde versie
+  const fuelTypeMap = {
+    'EURO95': 'EURO95',
+    'EURO 95': 'EURO95',
+    'EURO98': 'EURO98',
+    'EURO 98': 'EURO98',
+    'DIESEL': 'DIESEL',
+    'AUTOGAS': 'AUTOGAS',
+    'LPG': 'AUTOGAS'
+  };
+  
+  const normalizedFuel = fuelTypeMap[(fuelType || 'EURO95').toUpperCase()] || 'EURO95';
 
-  const priceObj = station.latest_prices.find(p =>
-    (p.fuel_type && p.fuel_type.toString().toUpperCase() === normalizedFuel) ||
-    (p.fuel_name && p.fuel_name.toString().toUpperCase().includes(normalizedFuel))
-  );
+  const priceObj = station.latest_prices.find(p => {
+    const pType = (p.fuel_type || '').toString().toUpperCase();
+    return pType === normalizedFuel;
+  });
 
   if (!priceObj || typeof priceObj.value_eur_per_l !== 'number') return null;
 
   return priceObj.value_eur_per_l;
 }
 
-// ===== ANWB-STATIONS OPHALEN EN HIER AL HARD FILTEREN OP VALUE =====
-async function fetchAnwbStationsAround(center, radiusKm, fuelType) {
+// ===== BRANDSTOF-STATIONS OPHALEN EN FILTEREN OP PRIJS =====
+async function fetchBrandstofStationsAround(center, radiusKm, fuelType) {
   if (!center) throw new Error('Geen center meegegeven');
 
   const bbox = buildBoundingBox(center.lat, center.lon, radiusKm);
 
+  // Map Nederlandse brandstoftype naamgeving naar API naming
+  const fuelTypeMap = {
+    'EURO95': 'euro95',
+    'EURO 95': 'euro95',
+    'EURO98': 'euro98',
+    'EURO 98': 'euro98',
+    'DIESEL': 'diesel',
+    'AUTOGAS': 'lpg',
+    'LPG': 'lpg',
+    'CNG': 'cng'
+  };
+  
+  const normalizedFuel = (fuelType || 'EURO95').toString().toUpperCase();
+  const apiFuelType = fuelTypeMap[normalizedFuel] || 'euro95';
+
   const params = new URLSearchParams();
-  params.set('type-filter', 'FUEL_STATION');
-  params.set(
-    'bounding-box-filter',
-    `${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon}`
-  );
+  params.set('pageType', 'map');
+  params.set('type', apiFuelType);
+  params.set('left', bbox.minLon.toString());
+  params.set('bottom', bbox.minLat.toString());
+  params.set('right', bbox.maxLon.toString());
+  params.set('top', bbox.maxLat.toString());
 
-  if (ANWB_API_KEY) {
-    params.set('apikey', ANWB_API_KEY);
-  }
-
-  const url = `${ANWB_API_BASE}?${params.toString()}`;
+  const url = `${BRANDSTOF_API_BASE}?${params.toString()}`;
   const res = await fetch(url, {
     headers: {
       'Accept': 'application/json',
@@ -198,32 +248,24 @@ async function fetchAnwbStationsAround(center, radiusKm, fuelType) {
   });
 
   if (!res.ok) {
-    throw new Error(`ANWB API error: ${res.status}`);
+    throw new Error(`Brandstof API error: ${res.status}`);
   }
 
   const data = await res.json();
-  const list = Array.isArray(data.value) ? data.value : [];
+  const list = Array.isArray(data) ? data : [];
 
-  const normalizedFuel = fuelType ? fuelType.toString().toUpperCase() : null;
-
-  // PREFILTER OP RUWE ANWB-DATA:
-  // alleen POI's overhouden die voor de gekozen brandstof een value >= MIN_PRICE_EUR_PER_L hebben
-  const filteredRaw = list.filter(poi => {
-    if (!Array.isArray(poi.prices) || !normalizedFuel) return false;
-
-    return poi.prices.some(p => {
-      if (typeof p.value !== 'number') return false;
-      if (p.value < MIN_PRICE_EUR_PER_L) return false;
-
-      const t = (p.fuelType || '').toString().toUpperCase();
-      const n = (p.fuelName || '').toString().toUpperCase();
-
-      return t === normalizedFuel || n.includes(normalizedFuel);
-    });
+  // Filter op minimale prijs
+  const filteredRaw = list.filter(item => {
+    if (!item.fuelPrice || typeof item.fuelPrice.prijs !== 'string') return false;
+    
+    const priceStr = item.fuelPrice.prijs.replace(',', '.');
+    const price = parseFloat(priceStr);
+    
+    return !isNaN(price) && price >= MIN_PRICE_EUR_PER_L;
   });
 
-  // Map alleen nog de al-gefilterde POI's
-  const stations = filteredRaw.map(poi => mapAnwbPoiToStation(poi, center));
+  // Map naar standaard station objecten
+  const stations = filteredRaw.map(item => mapBrandstofApiToStation(item, center)).filter(s => s !== null);
 
   return stations;
 }
@@ -248,7 +290,7 @@ async function searchNearbyStations() {
 
   try {
     // hier komen alleen nog stations binnen die al een geldige prijs voor de gekozen brandstof hebben
-    const allStations = await fetchAnwbStationsAround(userLocation, radius, fuelType);
+    const allStations = await fetchBrandstofStationsAround(userLocation, radius, fuelType);
 
     // exacte afstand + filter op straal
     let inRadius = allStations
@@ -296,8 +338,16 @@ async function searchNearbyStations() {
 }
 
 // ===== FILTER FUNCTIES =====
-function extractBrandName(stationTitle) {
-  const title = (stationTitle || '').trim();
+function extractBrandName(station) {
+  // De nieuwe API heeft 'chain' field met merknaam
+  if (station.chain) {
+    const chain = (station.chain || '').trim();
+    // Zorg voor correcte capitalisatie
+    return chain.charAt(0).toUpperCase() + chain.slice(1).toLowerCase();
+  }
+  
+  // Fallback op title (voor backward compatibility)
+  const title = (station.title || '').trim();
   
   // Bekende merken met speciale behandeling
   const titleLower = title.toLowerCase();
@@ -333,7 +383,7 @@ function buildBrandFilters(stations) {
   // Extract unieke merken
   const brandSet = new Set();
   stations.forEach(station => {
-    const brand = extractBrandName(station.title);
+    const brand = extractBrandName(station);
     brandSet.add(brand);
   });
   
@@ -348,41 +398,9 @@ function buildBrandFilters(stations) {
 }
 
 function isStationOpen(station) {
-  // Simpele check: als er openingHours is en het is een array, neem aan dat het open is
-  // Voor een betere implementatie zou je de huidige tijd moeten checken tegen openingHours
-  if (!station.openingHours || !Array.isArray(station.openingHours)) {
-    return true; // Geen info = toon wel
-  }
-  
-  // Check of er 24/7 opening is
-  const has24x7 = station.openingHours.some(hours => {
-    return hours.opens === '00:00' && hours.closes === '24:00';
-  });
-  
-  if (has24x7) return true;
-  
-  // Voor nu: simpele check op basis van dag
-  const now = new Date();
-  const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
-  const currentDay = dayNames[now.getDay()];
-  const currentTime = now.getHours() * 60 + now.getMinutes();
-  
-  const todayHours = station.openingHours.find(h => 
-    h.dayOfWeek && h.dayOfWeek.includes(currentDay)
-  );
-  
-  if (!todayHours) return false;
-  
-  const openTime = parseTimeString(todayHours.opens);
-  const closeTime = parseTimeString(todayHours.closes);
-  
-  return currentTime >= openTime && currentTime <= closeTime;
-}
-
-function parseTimeString(timeStr) {
-  if (!timeStr) return 0;
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours * 60 + minutes;
+  // De nieuwe API heeft geen openingsuren, dus we nemen aan dat stations altijd open zijn
+  // Dit kan later verbeterd worden met externe data
+  return true;
 }
 
 function applyFilters() {
@@ -391,15 +409,10 @@ function applyFilters() {
   let filtered = allStationsCache.filter(station => {
     // Brand filter
     if (activeFilters.selectedBrand) {
-      const brand = extractBrandName(station.title);
+      const brand = extractBrandName(station);
       if (brand !== activeFilters.selectedBrand) {
         return false;
       }
-    }
-    
-    // Open only filter
-    if (activeFilters.openOnly && !isStationOpen(station)) {
-      return false;
     }
     
     return true;
@@ -505,8 +518,8 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
       : '<span class="open-badge closed">🔴 Gesloten</span>';
 
     const titleWithFlag = flagBadge
-      ? `${station.title || 'Onbekend station'} ${flagBadge}`
-      : (station.title || 'Onbekend station');
+      ? `${station.chain || station.title || 'Onbekend station'} ${flagBadge}`
+      : (station.chain || station.title || 'Onbekend station');
 
     const routeUrl = buildDirectionsUrl(
       userLocation,
@@ -537,7 +550,7 @@ function displayResults(stations, fuelType, targetElementId, showDistance) {
         <div class="station-footer">
           ${distance}
           ${routeUrl
-        ? `<a class="route-btn" href="${routeUrl}" target="_blank" rel="noopener" aria-label="Route naar ${station.title || 'tankstation'}">🧭 Route</a>`
+        ? `<a class="route-btn" href="${routeUrl}" target="_blank" rel="noopener" aria-label="Route naar ${station.chain || station.title || 'tankstation'}">🧭 Route</a>`
         : ''}
         </div>
       </div>`;

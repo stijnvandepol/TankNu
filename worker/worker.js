@@ -1,4 +1,4 @@
-const ANWB_BASE = "https://api.anwb.nl";
+const BRANDSTOF_API_BASE = "https://www.brandstof-zoeker.nl/ajax/markers";
 
 const rateState = new Map();
 
@@ -146,8 +146,8 @@ export default {
       );
     }
 
-    // Exactzelfde pad + query als de ANWB API
-    const upstreamUrl = new URL(ANWB_BASE + url.pathname + url.search);
+    // Exactzelfde pad + query als de Brandstof API
+    const upstreamUrl = new URL(BRANDSTOF_API_BASE + url.pathname + url.search);
 
     // Cache key op basis van volledige upstream URL
     const cacheKey = new Request(upstreamUrl.toString(), {

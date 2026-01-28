@@ -11,8 +11,8 @@ Het idee is simpel: één frontend die je locatie gebruikt, een verzoek naar de 
 
 Deze applicatie doet eigenlijk maar een paar dingen, maar dan goed:
 
-- Haalt **tankstations en prijzen** op via de brandsof-zoeker.nl API
-- Vraagt deze data **direct vanuit de frontend** op (geen eigen database)
+- Haalt **tankstations en prijzen** op via de publieke ANWB API
+- Vraagt deze data **direct vanuit de frontend** op (geen eigen opslag)
 - Filtert en sorteert de resultaten in de browser op prijs en afstand
 - Biedt een **snelle, simpele web-interface** met focus op “goedkoopste in de buurt”
 - Integreert met Google Maps voor **navigatie naar het gekozen station**
@@ -21,13 +21,26 @@ Deze applicatie doet eigenlijk maar een paar dingen, maar dan goed:
 
 Je hebt **Docker Desktop** nodig. Of een andere Docker engine, maakt niet uit.
 
+**Stap 1:** Clone de repository
+
 ```bash
-docker run -d \
-  --name tanknu-app \
-  -p 8081:8080 \
-  --restart unless-stopped \
-  stijn0vp/tanknu-app:latest
+git clone https://github.com/stijnvandepol/TankNu.git
+cd Tanknu-lite
 ```
+
+**Stap 3:** Start de docker stack
+
+```bash
+docker compose up --build
+```
+
+## 📱 Browser support
+
+Frontend werkt op:
+- Chrome
+- Firefox 
+- Safari
+- Edge
 
 ## 🔐 Privacy
 
@@ -38,19 +51,3 @@ De frontend vraagt om je locatie voor de "Bij mij" functie. Deze locatie:
 - Wordt nooit gedeeld
 
 Backend logt geen persoonlijke data. Alleen anonieme stats zoals aantal API calls en errors.
-
-## ⚠️ Disclaimer & gebruik van API
-
-- Dit project is niet winstgevend
-- Het is bedoeld voor persoonlijk gebruik, hobby en educatie
-- Er wordt geen data opgeslagen of doorverkocht
-- Beperkte caching om onnodige belasting van de API te voorkomen.
-- De applicatie bevat geen advertenties
-
-Om onnodige belasting van de API te voorkomen, wordt beperkte en tijdelijke caching toegepast
-
-Mocht het gebruik van deze API in deze vorm ongewenst zijn, of mocht er bezwaar bestaan tegen deze implementatie, dan kan er direct contact worden opgenomen via:
-
-📧 stijnvdol@outlook.com
-
-Bij bezwaar wordt het project aangepast of direct offline gehaald.

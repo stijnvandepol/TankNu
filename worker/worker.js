@@ -1,4 +1,4 @@
-const BRANDSTOF_API_BASE = "https://www.brandstof-zoeker.nl/ajax/markers";
+const ANWB_BASE = "https://api.anwb.nl";
 
 const rateState = new Map();
 
@@ -146,10 +146,10 @@ export default {
       );
     }
 
-    // Exactzelfde pad + query als de Brandstof API
-    const upstreamUrl = new URL(BRANDSTOF_API_BASE + url.pathname + url.search);
+    // Exactzelfde pad + query als de ANWB API
+    const upstreamUrl = new URL(ANWB_BASE + url.pathname + url.search);
 
-    // Cache key op basis van volledige upstream URL.
+    // Cache key op basis van volledige upstream URL
     const cacheKey = new Request(upstreamUrl.toString(), {
       method: "GET",
     });
@@ -162,20 +162,9 @@ export default {
       return addCorsHeaders(response);
     }
 
-    // Upstream fetchen
+    // Niet in cache, upstream fetchen
     response = await fetch(upstreamUrl.toString(), {
       method: "GET",
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'nl-NL,nl;q=0.9',
-        'Referer': 'https://www.brandstof-zoeker.nl/',
-        'Origin': 'https://www.brandstof-zoeker.nl',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin'
-      },
       cf: {
         cacheEverything: true,
       },
